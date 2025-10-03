@@ -1,0 +1,180 @@
+/**
+ * Integration Example - How to integrate the new dual session terminal system
+ * 
+ * This file demonstrates how to replace the existing TuiTerminal component
+ * with the new TerminalManagerProvider and TerminalTabSwitcher system.
+ */
+
+// import React from 'react'  // Not needed for this example file
+import { TerminalManagerProvider } from './TerminalManagerContext'
+import { TerminalTabSwitcher } from './TerminalTabSwitcher'
+import { TerminalView } from './TerminalView'
+
+/**
+ * Replace the existing BottomPanel in App.tsx with this implementation:
+ * 
+ * BEFORE (current implementation):
+ * ```tsx
+ * const BottomPanel = () => {
+ *   const { mode } = useAmpMode();
+ *   
+ *   return (
+ *     <div className="h-full bg-background border-t border-border">
+ *       <div className="h-10 border-b border-border px-4 flex items-center justify-between">
+ *         <div className="flex items-center space-x-2">
+ *           <TerminalIcon className="w-4 h-4" />
+ *           <span className="text-sm font-medium">Terminal</span>
+ *         </div>
+ *         <div>
+ *           <AmpModeSwitcher />
+ *         </div>
+ *       </div>
+ * 
+ *       <div className="flex-1" style={{ height: "calc(100% - 40px)" }}>
+ *         <TuiTerminal
+ *           mode={mode}
+ *           onReady={() => console.log("Amp TUI ready!")}
+ *           onExit={() => console.log("Amp TUI exited")}
+ *         />
+ *       </div>
+ *     </div>
+ *   );
+ * };
+ * ```
+ * 
+ * AFTER (new implementation with dual sessions):
+ */
+
+import { TerminalIcon } from 'lucide-react'
+
+const EnhancedBottomPanel = () => {
+  return (
+    <div className="h-full bg-background border-t border-border">
+      <div className="h-10 border-b border-border px-4 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <TerminalIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">Terminal Sessions</span>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Dual-mode session support
+        </div>
+      </div>
+
+      <div className="flex-1" style={{ height: "calc(100% - 40px)" }}>
+        <TerminalTabSwitcher />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Updated App component integration:
+ * 
+ * 1. Add TerminalManagerProvider to wrap your app
+ * 2. Remove AmpModeProvider as it's no longer needed
+ * 3. Replace TuiTerminal usage with TerminalTabSwitcher
+ * 
+ * Required imports to add to App.tsx:
+ * ```tsx
+ * import { TerminalManagerProvider } from "./components/terminal/TerminalManagerContext";
+ * import { TerminalTabSwitcher } from "./components/terminal/TerminalTabSwitcher";
+ * ```
+ * 
+ * Remove these imports (no longer needed):
+ * ```tsx
+ * import { TuiTerminal } from "./components/terminal";
+ * import {
+ *   AmpModeProvider,
+ *   AmpModeSwitcher,
+ *   useAmpMode,
+ * } from "./components/app/AmpModeProvider";
+ * ```
+ */
+
+export const IntegratedApp = () => {
+  return (
+    <TerminalManagerProvider>
+      {/* Your existing app structure here */}
+      
+      <div className="flex-1">
+        <EnhancedBottomPanel />
+      </div>
+    </TerminalManagerProvider>
+  )
+}
+
+/**
+ * Alternative: Individual terminal views for custom layouts
+ * 
+ * If you want more control over the layout, you can use TerminalView directly:
+ */
+
+export const CustomTerminalLayout = () => {
+  return (
+    <TerminalManagerProvider>
+      <div className="grid grid-cols-2 h-full gap-4 p-4">
+        <div className="bg-gray-900 rounded-lg overflow-hidden">
+          <div className="bg-gray-800 px-4 py-2 text-white text-sm font-medium">
+            Production Terminal
+          </div>
+          <TerminalView 
+            mode="production" 
+            className="h-full"
+            onReady={() => console.log('Production terminal ready')}
+            onError={(error) => console.error('Production terminal error:', error)}
+          />
+        </div>
+
+        <div className="bg-gray-900 rounded-lg overflow-hidden">
+          <div className="bg-gray-800 px-4 py-2 text-white text-sm font-medium">
+            Development Terminal
+          </div>
+          <TerminalView 
+            mode="development" 
+            className="h-full"
+            onReady={() => console.log('Development terminal ready')}
+            onError={(error) => console.error('Development terminal error:', error)}
+          />
+        </div>
+      </div>
+    </TerminalManagerProvider>
+  )
+}
+
+/**
+ * Key Benefits of the New System:
+ * 
+ * 1. **No Process Interruption**: Switch between production and development
+ *    terminals instantly without killing/respawning processes
+ * 
+ * 2. **Persistent State**: Command history and session state maintained
+ *    when switching between tabs
+ * 
+ * 3. **Profile Integration**: Automatically uses the active profile from
+ *    ProfileManager for environment configuration
+ * 
+ * 4. **Environment Isolation**: Each session has its own environment
+ *    variables based on the profile configuration
+ * 
+ * 5. **Parallel Development**: Work with both production and development
+ *    Amp instances simultaneously
+ * 
+ * 6. **Clean Architecture**: Separation of concerns between UI components
+ *    and process management
+ */
+
+/**
+ * Migration Checklist:
+ * 
+ * ✅ 1. Install dependencies (rxjs already added)
+ * ✅ 2. Create session management system (session.ts)
+ * ✅ 3. Create React context (TerminalManagerContext.tsx)  
+ * ✅ 4. Create UI components (TerminalView.tsx)
+ * ✅ 5. Update Tauri backend (session_commands.rs)
+ * 
+ * TODO: 6. Update App.tsx to use new components
+ * TODO: 7. Test with actual profile switching
+ * TODO: 8. Add proper error handling and recovery
+ * TODO: 9. Test memory usage with dual sessions
+ * TODO: 10. Update documentation (AGENTS.md)
+ */

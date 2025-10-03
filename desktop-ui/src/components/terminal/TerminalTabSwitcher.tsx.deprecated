@@ -1,0 +1,54 @@
+import { useState } from "react";
+import { Terminal, Code } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
+import { type SessionMode } from "./TerminalManagerContext";
+import { TerminalView } from "./TerminalView";
+
+interface TerminalTabSwitcherProps {
+  mode?: SessionMode;
+  onModeChange?: (mode: SessionMode) => void;
+}
+
+export function TerminalTabSwitcher({ mode, onModeChange }: TerminalTabSwitcherProps = {}) {
+  const [internalActiveTab, setInternalActiveTab] = useState<SessionMode>("production");
+  
+  // Use controlled mode if provided, otherwise use internal state
+  const activeTab = mode ?? internalActiveTab;
+  const setActiveTab = onModeChange ?? setInternalActiveTab;
+
+  return (
+    <div className="flex flex-col h-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value: string) => setActiveTab(value as SessionMode)}
+        className="flex-1 flex flex-col h-full"
+      >
+        <div className="flex items-center justify-between border-b border-border px-4 py-2">
+          <TabsList className="grid grid-cols-2 w-auto">
+            <TabsTrigger
+              value="production"
+              className="flex items-center gap-2"
+            >
+              <Terminal className="w-4 h-4" />
+              <span>Production</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="development"
+              className="flex items-center gap-2"
+            >
+              <Code className="w-4 h-4" />
+              <span>Development</span>
+            </TabsTrigger>
+          </TabsList>
+
+
+        </div>
+
+        {/* Single persistent TerminalView that handles both modes */}
+        <div className="flex-1 relative">
+          <TerminalView mode={activeTab} />
+        </div>
+      </Tabs>
+    </div>
+  );
+}

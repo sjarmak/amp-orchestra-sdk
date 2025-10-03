@@ -1,0 +1,42 @@
+{
+  "name": "@ampsm/amp-backend-core",
+  "version": "1.0.0",
+  "description": "Core Amp connection and authentication logic extracted from amp-orchestrator",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth.js",
+      "types": "./dist/auth.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    },
+    "./resolver": {
+      "import": "./dist/resolver.js",
+      "types": "./dist/resolver.d.ts"
+    }
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "env-paths": "^3.0.0"
+  }
+}

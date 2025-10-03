@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Amp Connection Debug</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #1e1e1e; color: #fff; }
+        .button { 
+            padding: 10px 20px; 
+            margin: 10px 5px; 
+            background: #007acc; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .button:hover { background: #005a9e; }
+        .log { 
+            background: #2d2d2d; 
+            border: 1px solid #555; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .config { 
+            background: #2d2d2d; 
+            border: 1px solid #555; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+        }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        .info { color: #74c0fc; }
+    </style>
+</head>
+<body>
+    <h1>Amp Connection Debug Tool</h1>
+    
+    <h2>Test Configurations</h2>
+    <div id="configs"></div>
+    
+    <h2>Actions</h2>
+    <button class="button" onclick="testProduction()">Test Production Config</button>
+    <button class="button" onclick="testDevelopment()">Test Development Config</button>
+    <button class="button" onclick="testLocalServer()">Test Local Server Config</button>
+    <button class="button" onclick="testAllConfigs()">Test All Configs</button>
+    <button class="button" onclick="testProdRaw()">Test Prod Raw (whoami)</button>
+    <button class="button" onclick="testDevRaw()">Test Dev Raw (whoami)</button>
+    <button class="button" onclick="clearLog()">Clear Log</button>
+    
+    <h2>Log Output</h2>
+    <div id="log" class="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+        const configsDiv = document.getElementById('configs');
+        
+        // Override console methods to capture output
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function appendLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            log.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            appendLog(args.join(' '), 'info');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            appendLog(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            appendLog(args.join(' '), 'warn');
+        };
+        
+        // Test configurations
+        const testConfigs = [
+            {
+                name: 'Production Configuration',
+                command: 'amp',
+                args: ['--version'],
+                env: { AMP_BIN: 'amp' }
+            },
+            {
+                name: 'Development Configuration (Node + CLI)',
+                command: 'node',
+                args: ['/Users/sjarmak/amp/cli/dist/main.js', '--version'],
+                env: {
+                    AMP_CLI_PATH: '/Users/sjarmak/amp/cli/dist/main.js',
+                    AMP_URL: 'https://localhost:7002',
+                    NODE_TLS_REJECT_UNAUTHORIZED: '0'
+                }
+            },
+            {
+                name: 'Local Server Configuration',
+                command: 'amp',
+                args: ['--version'],
+                env: {
+                    AMP_URL: 'https://localhost:7002',
+                    NODE_TLS_REJECT_UNAUTHORIZED: '0'
+                }
+            }
+        ];
+        
+        // Display configurations
+        testConfigs.forEach((config, index) => {
+            const div = document.createElement('div');
+            div.className = 'config';
+            div.innerHTML = `
+                <h3>${config.name}</h3>
+                <p><strong>Command:</strong> ${config.command}</p>
+                <p><strong>Args:</strong> ${JSON.stringify(config.args)}</p>
+                <p><strong>Environment:</strong> ${JSON.stringify(config.env, null, 2)}</p>
+            `;
+            configsDiv.appendChild(div);
+        });
+        
+        // Test functions (these would need Tauri context to work)
+        async function testConfig(configIndex) {
+            const config = testConfigs[configIndex];
+            console.log(`\n=== Testing: ${config.name} ===`);
+            console.log('Command:', config.command);
+            console.log('Args:', config.args);
+            console.log('Environment:', config.env);
+            
+            try {
+                // This would only work in actual Tauri app context
+                if (typeof window.__TAURI__ === 'undefined') {
+                    console.error('Tauri context not available. Run this in the actual Tauri app.');
+                    return;
+                }
+                
+                const { invoke } = window.__TAURI__.tauri;
+                const sessionId = `test-session-${Date.now()}`;
+                
+                console.log('Calling spawn_amp_process...');
+                const processId = await invoke('spawn_amp_process', {
+                    command: config.command,
+                    args: config.args,
+                    env: config.env,
+                    sessionId
+                });
+                
+                console.log('✅ Process spawned successfully!');
+                console.log('Process ID:', processId);
+                console.log('Session ID:', sessionId);
+                
+            } catch (error) {
+                console.error('❌ Failed to spawn process:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
+            }
+        }
+        
+        function testProduction() { testConfig(0); }
+        function testDevelopment() { testConfig(1); }
+        function testLocalServer() { testConfig(2); }
+        
+        async function testAllConfigs() {
+            console.log('=== Testing All Configurations ===');
+            for (let i = 0; i < testConfigs.length; i++) {
+                await testConfig(i);
+                if (i < testConfigs.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+        }
+
+        // Raw spawn tests using spawn_process_raw with env_clear
+        async function testProdRaw() {
+            if (typeof window.__TAURI__ === 'undefined') {
+                console.error('Tauri context not available.');
+                return;
+            }
+            const token = prompt('Enter AMP_TOKEN for production test:');
+            if (!token) { console.error('No token provided'); return; }
+            const { invoke } = window.__TAURI__.tauri;
+            const sessionId = `raw-prod-${Date.now()}`;
+            console.log(`\n=== Raw Prod whoami ===`);
+            try {
+                await invoke('spawn_process_raw', {
+                    command: 'amp',
+                    args: ['-x','whoami','--stream-json'],
+                    env: { AMP_TOKEN: token },
+                    envClear: true,
+                    sessionId
+                });
+            } catch (e) {
+                console.error('spawn_process_raw failed:', e);
+            }
+        }
+
+        async function testDevRaw() {
+            if (typeof window.__TAURI__ === 'undefined') {
+                console.error('Tauri context not available.');
+                return;
+            }
+            const token = prompt('Enter AMP_TOKEN for dev test:');
+            if (!token) { console.error('No token provided'); return; }
+            const { invoke } = window.__TAURI__.tauri;
+            const sessionId = `raw-dev-${Date.now()}`;
+            console.log(`\n=== Raw Dev whoami ===`);
+            try {
+                await invoke('spawn_process_raw', {
+                    command: 'node',
+                    args: ['/Users/sjarmak/amp/cli/dist/main.js','-x','whoami','--stream-json'],
+                    env: {
+                        AMP_TOKEN: token,
+                        AMP_URL: 'https://localhost:7002',
+                        NODE_TLS_REJECT_UNAUTHORIZED: '0'
+                    },
+                    envClear: true,
+                    sessionId
+                });
+            } catch (e) {
+                console.error('spawn_process_raw failed:', e);
+            }
+        }
+        
+        function clearLog() {
+            log.innerHTML = '';
+        }
+        
+        console.log('🚀 Amp Connection Debug Tool Ready');
+        console.log('Click buttons to test different configurations');
+        
+        if (typeof window.__TAURI__ === 'undefined') {
+            console.warn('⚠️ Tauri context not detected. Open this in the Tauri app to test actual functionality.');
+        }
+    </script>
+</body>
+</html>

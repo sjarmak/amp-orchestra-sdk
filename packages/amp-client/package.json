@@ -1,0 +1,74 @@
+{
+  "name": "@ampsm/amp-client",
+  "version": "1.0.0",
+  "description": "Standalone Amp authentication and client library",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth.js",
+      "types": "./dist/auth.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils.js",
+      "types": "./dist/utils.d.ts"
+    },
+    "./enhanced-client": {
+      "import": "./dist/enhanced-client.js",
+      "types": "./dist/enhanced-client.d.ts"
+    },
+    "./config-service": {
+      "import": "./dist/config-service.js",
+      "types": "./dist/config-service.d.ts"
+    },
+    "./session-manager": {
+      "import": "./dist/session-manager.js",
+      "types": "./dist/session-manager.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser.js",
+      "types": "./dist/browser.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "amp",
+    "authentication",
+    "api-client",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@ampsm/amp-backend-core": "workspace:*",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@ampsm/shared",
+  "version": "0.1.0",
+  "description": "Shared utilities and types for amp-orchestra packages",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs --target node20",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsup src/index.ts --watch --dts --format esm,cjs --target node20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  },
+  "keywords": [
+    "shared",
+    "utilities",
+    "types",
+    "amp-orchestra"
+  ]
+}

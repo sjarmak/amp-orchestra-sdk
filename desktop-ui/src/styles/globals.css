@@ -1,0 +1,163 @@
+/* Global xterm.css import - Oracle's fix: import once to avoid duplicate style tags */
+@import 'xterm/css/xterm.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Terminal visibility management - from TUI Terminal Postmortem */
+.amp-tui-hidden {
+  position: absolute !important;
+  inset: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  z-index: -1 !important;
+}
+
+/* Resizable Panel Styling */
+.amp-resize-handle {
+  background: hsl(var(--border));
+  transition: background-color 0.2s ease;
+}
+
+.amp-resize-handle:hover {
+  background: hsl(var(--accent));
+}
+
+/* Horizontal split (default) - resizer is vertical */
+[data-panel-group-direction="horizontal"] .amp-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+}
+
+/* Vertical split - resizer is horizontal */  
+[data-panel-group-direction="vertical"] .amp-resize-handle {
+  height: 4px;
+  cursor: row-resize;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 240 10% 15%; /* Dark background for messages */
+    --card-foreground: 0 0% 95%; /* Light text for messages */
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 65% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+
+    /* Terminal theme variables - light mode */
+    --terminal-background: #ffffff;
+    --terminal-foreground: #000000;
+  }
+
+  .dark {
+    --background: 25 6% 14%; /* gruvbox bg0 */
+    --foreground: 43 14% 88%; /* gruvbox fg0 */
+    --card: 25 6% 16%; /* gruvbox bg1 */
+    --card-foreground: 43 14% 88%;
+    --popover: 25 6% 16%;
+    --popover-foreground: 43 14% 88%;
+    --primary: 43 14% 88%; /* gruvbox fg0 - matches foreground text color */
+    --primary-foreground: 25 6% 14%;
+    --secondary: 25 6% 20%; /* gruvbox bg2 */
+    --secondary-foreground: 43 14% 88%;
+    --muted: 25 6% 20%;
+    --muted-foreground: 40 7% 46%; /* gruvbox gray */
+    --accent: 25 6% 24%; /* gruvbox bg3 */
+    --accent-foreground: 43 14% 88%;
+    --destructive: 4 58% 46%; /* muted red */
+    --destructive-foreground: 43 14% 88%;
+    --border: 25 6% 24%;
+    --input: 25 6% 20%;
+    --ring: 43 14% 88%; /* gruvbox fg0 - matches foreground text color */
+
+    /* Terminal theme variables - dark mode */
+    --terminal-background: #000000;
+    --terminal-foreground: #ffffff;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted/30;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-md;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* App specific styles */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  cursor: default;
+}
+
+/* Ensure buttons and interactive elements are not draggable */
+button, input, select, textarea {
+  -webkit-app-region: no-drag;
+}
+
+/* Xterm rendering stability tweaks */
+.xterm {
+  /* Remove aggressive containment/transform that may block DOM renderer updates */
+  contain: none !important;
+  backface-visibility: visible !important;
+  transform: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  height: 100%;
+  /* Add subtle padding for breathing room */
+  padding: 4px 8px !important;
+}
+.xterm .xterm-viewport {
+  will-change: contents;
+  height: 100%;
+}
+.xterm .xterm-screen canvas {
+  image-rendering: optimizeSpeed;
+}
+ /* Let xterm manage layers/colors; remove forced row/canvas overrides */
+
+/* Keep hidden terminals mounted with valid dimensions */
+.amp-tui-hidden {
+  position: absolute !important;
+  inset: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  z-index: -1 !important;
+}
+

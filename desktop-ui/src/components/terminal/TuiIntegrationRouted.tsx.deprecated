@@ -1,0 +1,198 @@
+/**
+ * Router-aware TUI Integration Component
+ * 
+ * Combines TUI functionality with React Router navigation for session/thread management
+ */
+
+import { useState, useCallback, useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { ViewMode } from './ChatTerminalToggle'
+import ExecutionProfileSelector, { ExecutionProfile } from './ExecutionProfileSelector'
+import { useAppConfig } from '../../hooks/useAppConfig'
+import { TerminalTabsNew } from './TerminalTabsNew'
+import { useTerminalSessions, AmpProfileKind } from './TerminalSessionProvider'
+import SimpleTerminal from './SimpleTerminal'
+import { SessionsListPage } from '../../pages/SessionsListPage'
+import { SessionDetailPage } from '../../pages/SessionDetailPage'
+
+interface TuiIntegrationRoutedProps {
+  className?: string
+}
+
+/**
+ * Router-aware TUI Integration with master-detail navigation
+ */
+export function TuiIntegrationRouted({ className = '' }: TuiIntegrationRoutedProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('chat')
+  const [executionProfile, setExecutionProfile] = useState<ExecutionProfile>('prod')
+  const [terminalStatus, setTerminalStatus] = useState<'idle' | 'running' | 'error'>('idle')
+  
+  // Get app configuration to determine environment kind
+  const { config: appConfig, loading: configLoading } = useAppConfig()
+  
+  // Terminal session management (for terminal view)
+  const { 
+    sessions, 
+    activeId, 
+    createSession
+  } = useTerminalSessions()
+
+  // Determine environment kind for profile gating
+  const envKind = appConfig?.connection_mode === 'local' ? 'local' : 'production'
+
+  // Handle profile changes
+  const handleProfileChange = useCallback((profile: ExecutionProfile) => {
+    setExecutionProfile(profile)
+    
+    // Create new session with the updated profile for terminal mode
+    if (viewMode === 'terminal') {
+      createSession(profile as AmpProfileKind)
+    }
+  }, [viewMode, createSession])
+
+  // Handle creating new terminal sessions
+  const handleCreateSession = useCallback((profile: AmpProfileKind) => {
+    createSession(profile)
+  }, [createSession])
+
+  // Create initial session if none exist and terminal is active
+  useEffect(() => {
+    if (viewMode === 'terminal' && sessions.length === 0) {
+      createSession(executionProfile as AmpProfileKind)
+    }
+  }, [viewMode, sessions.length, createSession, executionProfile])
+  
+  // Update terminal status based on view mode and profile
+  useEffect(() => {
+    if (viewMode === 'terminal') {
+      console.log('[TuiIntegrationRouted] Terminal view activated')
+      setTerminalStatus('running')
+    } else {
+      setTerminalStatus('idle')
+    }
+  }, [viewMode])
+  
+  // Collect launch metrics when first terminal is started
+  useEffect(() => {
+    if (terminalStatus === 'running' && typeof window !== 'undefined' && (window as any).plausible) {
+      (window as any).plausible('TUI Launch', {
+        props: {
+          profile: executionProfile,
+          env_kind: envKind
+        }
+      })
+    }
+  }, [terminalStatus, executionProfile, envKind])
+  
+  // Render terminal content with session management
+  const terminalContent = (
+    <div className="flex flex-col h-full">
+      {/* Profile Selector (only shows when envKind == 'local') */}
+      {envKind === 'local' && (
+        <div className="flex-shrink-0 p-3 border-b border-border bg-muted/10">
+          <ExecutionProfileSelector
+            currentProfile={executionProfile}
+            onProfileChange={handleProfileChange}
+            envKind={envKind}
+            disabled={false} // Allow changing profiles - creates new sessions
+          />
+        </div>
+      )}
+      
+      {/* Terminal Session Tabs */}
+      {sessions.length > 0 && (
+        <div className="flex-shrink-0">
+          <TerminalTabsNew 
+            profile={executionProfile as AmpProfileKind}
+            onCreateSession={handleCreateSession}
+          />
+        </div>
+      )}
+      
+      {/* Terminal Sessions Container */}
+      <div className="flex-1 min-h-0 relative">
+        {sessions.map((session) => (
+          <div 
+            key={session.id}
+            className={`absolute inset-0 ${activeId === session.id ? 'z-10' : 'z-0'}`}
+            style={{ visibility: activeId === session.id ? 'visible' : 'hidden' }}
+          >
+            <SimpleTerminal
+              kind="terminal"
+              className="w-full h-full"
+              active={activeId === session.id}
+              cwd={session.cwd}
+            />
+          </div>
+        ))}
+        
+        {/* Show placeholder if no sessions */}
+        {sessions.length === 0 && (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="text-center">
+              <p>No terminal sessions</p>
+              <p className="text-sm mt-1">Switch to terminal to start a session</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+  
+  // Render chat content with routing
+  const renderChatContent = () => {
+    return (
+      <div className="h-full flex flex-col">
+        <Routes>
+          <Route path="/" element={<Navigate to="/sessions" replace />} />
+          <Route path="/sessions" element={<SessionsListPage />} />
+          <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
+        </Routes>
+      </div>
+    )
+  }
+  
+  // Show loading state while config is loading
+  if (configLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col h-full ${className}`}>
+      {/* Chat/Terminal Toggle */}
+      <div className="flex-shrink-0 border-b border-border p-2">
+        <div className="flex bg-muted rounded-md p-1 max-w-fit">
+          <button
+            onClick={() => setViewMode('chat')}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              viewMode === 'chat'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setViewMode('terminal')}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              viewMode === 'terminal'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Terminal
+          </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 min-h-0">
+        {viewMode === 'chat' ? renderChatContent() : terminalContent}
+      </div>
+    </div>
+  )
+}

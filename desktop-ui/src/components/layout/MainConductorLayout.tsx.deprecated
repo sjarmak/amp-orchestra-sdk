@@ -1,0 +1,298 @@
+import React, { useEffect } from 'react';
+import {
+  FolderOpen,
+  GitBranch,
+  PanelLeftOpen,
+  PanelRightOpen,
+  PanelRightClose,
+  MessageSquare,
+  Terminal
+} from "lucide-react";
+import { ConductorSidebar } from './ConductorSidebar';
+import { ChatPane } from './ChatPane';
+import { DiffPane } from './DiffPane';
+import { TerminalPane } from './TerminalPane';
+import { ResizableSplit } from './ResizableSplit';
+import { useUILayout } from '../../contexts/UILayoutContext';
+import { useRepository } from '../../contexts/RepositoryContext';
+import { ThemeToggle } from "../ThemeToggle";
+import { AgentModeSelect } from "../app/AgentModeSelect";
+import { ToolboxProfileSelect } from "../app/ToolboxProfileSelect";
+
+const TopBar = ({ 
+  onToggleSidebar, 
+  sidebarVisible, 
+  onToggleRightPanel, 
+  rightPanelVisible,
+  activeRepository,
+  mainViewMode,
+  onMainViewModeChange
+}: { 
+  onToggleSidebar: () => void; 
+  sidebarVisible: boolean; 
+  onToggleRightPanel: () => void; 
+  rightPanelVisible: boolean;
+  activeRepository?: any;
+  mainViewMode: 'chat' | 'terminal-diff';
+  onMainViewModeChange: (mode: 'chat' | 'terminal-diff') => void;
+}) => {
+  // Static badge for now - TUI integration will handle the connection status  
+  const modeLabel = 'Ready';
+  const badgeClass = 'bg-muted/50 text-muted-foreground border-border';
+
+  return (
+    <div
+      className="h-12 border-b border-border flex items-center justify-between px-4 relative"
+      data-tauri-drag-region
+    >
+      <div className="flex items-center gap-4">
+        {!sidebarVisible && (
+          <button onClick={onToggleSidebar} className="p-2 hover:bg-accent rounded-md transition-colors" aria-label="Show sidebar">
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
+        )}
+
+        <div className="flex items-center space-x-2">
+          <FolderOpen className="w-4 h-4" />
+          <span className="font-medium select-none">
+            {activeRepository?.name || 'amp-orchestra'}
+          </span>
+          <GitBranch className="w-3 h-3" />
+          <span className="text-sm text-muted-foreground select-none">
+            {activeRepository?.branch || 'main'}
+          </span>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex items-center bg-muted/30 rounded-lg p-1">
+          <button
+            onClick={() => onMainViewModeChange('chat')}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              mainViewMode === 'chat'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <MessageSquare className="w-3 h-3" />
+            Chat
+          </button>
+          <button
+            onClick={() => onMainViewModeChange('terminal-diff')}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              mainViewMode === 'terminal-diff'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <Terminal className="w-3 h-3" />
+            Terminal
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {!rightPanelVisible && (
+          <button onClick={onToggleRightPanel} className="p-2 hover:bg-accent rounded-md transition-colors" aria-label="Show terminal/diff panel">
+            <PanelRightOpen className="w-4 h-4" />
+          </button>
+        )}
+        
+        <span
+          className={`text-xs px-2 py-1 rounded-full border select-none ${badgeClass}`}
+          data-test-id="env-badge"
+        >
+          {modeLabel}
+        </span>
+        
+        {/* Agent Mode dropdown and Toolbox Path selector */}
+        <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground hidden xl:inline">Agent mode</span>
+            <AgentModeSelect className="max-w-20 lg:max-w-32" />
+          </div>
+          <div className="hidden lg:flex items-center gap-1">
+            <span className="text-xs text-muted-foreground hidden xl:inline">Toolbox</span>
+            <ToolboxProfileSelect />
+          </div>
+        </div>
+        
+        <ThemeToggle />
+      </div>
+    </div>
+  );
+};
+
+interface MainConductorLayoutProps {
+  className?: string;
+}
+
+/**
+ * MainConductorLayout implements a sophisticated resizable panel system with:
+ * - R1 Resizer: Vertical split between Chat (left) ⇆ Right panel (whole)
+ * - R2 Resizer: Horizontal split between Diff ⇆ Terminal (within right panel)
+ * - Minimum sizes: Chat ≥ 320px, Right ≥ 480px, Diff ≥ 180px, Terminal ≥ 140px
+ * - Persistent split positions via localStorage
+ */
+export const MainConductorLayout: React.FC<MainConductorLayoutProps> = ({ className = '' }) => {
+  const {
+    state,
+    toggleSidebar,
+    toggleRightPanel,
+    setSidebarVisible,
+    setRightPanelVisible,
+    setMainViewMode,
+  } = useUILayout();
+  
+  const { activeRepository } = useRepository();
+
+  // Calculate responsive minimum sizes based on window width (in percentages)
+  const getMinimumSizes = () => {
+    const windowWidth = window.innerWidth;
+    
+    // Convert pixel values to percentages for react-resizable-panels
+    if (windowWidth < 1024) { // lg breakpoint
+      return {
+        chatMin: 30, // ~30% of viewport
+        chatMax: 70, // ~70% of viewport
+        chatDefault: 50,
+        diffMin: 25, // ~25% of right panel height
+        diffMax: 75, // ~75% of right panel height  
+        diffDefault: 50,
+      };
+    } else if (windowWidth < 1280) { // xl breakpoint
+      return {
+        chatMin: 25,
+        chatMax: 75,
+        chatDefault: 55,
+        diffMin: 30,
+        diffMax: 70,
+        diffDefault: 45,
+      };
+    }
+    
+    // Full desktop sizes
+    return {
+      chatMin: 20, // Chat ≥ 320px at ~1600px screen = 20%
+      chatMax: 80, // Right ≥ 480px at ~1600px screen = 30%, so chat max 70%
+      chatDefault: 60,
+      diffMin: 25, // Diff ≥ 180px
+      diffMax: 75, // Terminal ≥ 140px
+      diffDefault: 50,
+    };
+  };
+
+  const minimumSizes = getMinimumSizes();
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        const el = document.getElementById('chat-input') as HTMLInputElement | null;
+        el?.focus();
+        return;
+      }
+      
+      // Toggle sidebar with Cmd/Ctrl + B
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+        return;
+      }
+      
+      // Toggle right panel with Cmd/Ctrl + Shift + T
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        toggleRightPanel();
+        return;
+      }
+    };
+    
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleSidebar, toggleRightPanel]);
+
+  const handleMainViewModeChange = (mode: 'chat' | 'terminal-diff') => {
+    setMainViewMode(mode);
+    
+    // When switching to terminal-diff mode, ensure right panel is visible
+    if (mode === 'terminal-diff' && !state.rightPanelVisible) {
+      setRightPanelVisible(true);
+    }
+  };
+
+  return (
+    <div className={`h-screen flex flex-col bg-background text-foreground ${className}`}>
+      <TopBar 
+        onToggleSidebar={toggleSidebar}
+        sidebarVisible={state.sidebarVisible} 
+        onToggleRightPanel={toggleRightPanel}
+        rightPanelVisible={state.rightPanelVisible}
+        activeRepository={activeRepository}
+        mainViewMode={state.mainViewMode}
+        onMainViewModeChange={handleMainViewModeChange}
+      />
+
+      <div className="flex-1 flex min-h-0">
+        {/* Left Sidebar */}
+        {state.sidebarVisible && (
+          <ConductorSidebar onToggle={() => setSidebarVisible(false)} />
+        )}
+
+        {/* Main Content Area with Resizable Splits */}
+        <div className="flex-1 flex min-h-0">
+          {state.mainViewMode === 'chat' ? (
+            // Chat mode: Chat (left) ⇆ Right panel (if visible)
+            state.rightPanelVisible ? (
+              <ResizableSplit
+                storageKey="main-chat-right"
+                defaultSize={minimumSizes.chatDefault}
+                minSize={minimumSizes.chatMin}
+                maxSize={minimumSizes.chatMax}
+                direction="horizontal"
+              >
+                {[
+                  <ChatPane />,
+                  /* R2 Resizer: Vertical split within right panel */
+                  <ResizableSplit
+                    storageKey="right-panel-diff-terminal"
+                    defaultSize={minimumSizes.diffDefault}
+                    minSize={minimumSizes.diffMin}
+                    maxSize={minimumSizes.diffMax}
+                    direction="vertical"
+                  >
+                    {[
+                      <DiffPane />,
+                      <TerminalPane />
+                    ]}
+                  </ResizableSplit>
+                ]}
+              </ResizableSplit>
+            ) : (
+              // Only chat visible
+              <ChatPane className="flex-1" />
+            )
+          ) : (
+            // Terminal-diff mode: Full terminal view
+            <div className="flex-1">
+              <TerminalPane className="h-full" />
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel Close Button (when main view is terminal-diff and right panel is visible) */}
+        {state.mainViewMode === 'terminal-diff' && state.rightPanelVisible && (
+          <div className="w-8 border-l border-border flex flex-col">
+            <button 
+              onClick={toggleRightPanel}
+              className="p-2 hover:bg-accent transition-colors flex items-center justify-center h-12 border-b border-border"
+              aria-label="Hide terminal panel"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,213 @@
+import React, { useState, useCallback } from 'react';
+import { 
+  Terminal, 
+  FileText, 
+  X,
+  Plus,
+  MoreHorizontal
+} from 'lucide-react';
+import { SessionAwareTerminal } from '../Sessions/SessionAwareTerminal';
+import { DiffTab } from './DiffTab';
+
+export type TabType = 'terminal' | 'diff';
+
+export interface Tab {
+  id: string;
+  type: TabType;
+  title: string;
+  isActive: boolean;
+  data?: any; // For diff tab: file path, for terminal: session info
+}
+
+interface TerminalAndDiffTabsProps {
+  className?: string;
+}
+
+export const TerminalAndDiffTabs: React.FC<TerminalAndDiffTabsProps> = ({ 
+  className = '' 
+}) => {
+  const [tabs, setTabs] = useState<Tab[]>([
+    {
+      id: 'terminal-1',
+      type: 'terminal',
+      title: 'Terminal',
+      isActive: true
+    }
+  ]);
+  const [showTabMenu, setShowTabMenu] = useState<string | null>(null);
+
+  const activeTab = tabs.find(tab => tab.isActive);
+
+  const handleTabClick = useCallback((tabId: string) => {
+    setTabs(prev => prev.map(tab => ({
+      ...tab,
+      isActive: tab.id === tabId
+    })));
+  }, []);
+
+  const handleCloseTab = useCallback((tabId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    setTabs(prev => {
+      const tabToClose = prev.find(t => t.id === tabId);
+      const newTabs = prev.filter(t => t.id !== tabId);
+      
+      // If we closed the active tab, activate another one
+      if (tabToClose?.isActive && newTabs.length > 0) {
+        const nextActiveIndex = Math.max(0, prev.findIndex(t => t.id === tabId) - 1);
+        newTabs[nextActiveIndex] = { ...newTabs[nextActiveIndex], isActive: true };
+      }
+      
+      return newTabs;
+    });
+  }, []);
+
+  const handleNewTerminal = useCallback(() => {
+    const newTerminalId = `terminal-${Date.now()}`;
+    const newTab: Tab = {
+      id: newTerminalId,
+      type: 'terminal',
+      title: `Terminal ${tabs.filter(t => t.type === 'terminal').length + 1}`,
+      isActive: true
+    };
+    
+    setTabs(prev => [
+      ...prev.map(tab => ({ ...tab, isActive: false })),
+      newTab
+    ]);
+  }, [tabs]);
+
+  const handleNewDiff = useCallback(() => {
+    const newDiffId = `diff-${Date.now()}`;
+    const newTab: Tab = {
+      id: newDiffId,
+      type: 'diff',
+      title: 'Diff View',
+      isActive: true
+    };
+    
+    setTabs(prev => [
+      ...prev.map(tab => ({ ...tab, isActive: false })),
+      newTab
+    ]);
+  }, []);
+
+  const renderTabContent = () => {
+    if (!activeTab) return null;
+
+    switch (activeTab.type) {
+      case 'terminal':
+        return <SessionAwareTerminal />;
+      case 'diff':
+        return <DiffTab data={activeTab.data} />;
+      default:
+        return <div className="flex-1 flex items-center justify-center text-muted-foreground">No content</div>;
+    }
+  };
+
+  const getTabIcon = (type: TabType) => {
+    switch (type) {
+      case 'terminal':
+        return <Terminal className="w-3 h-3" />;
+      case 'diff':
+        return <FileText className="w-3 h-3" />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className={`flex flex-col bg-background border-l border-border ${className}`}>
+      {/* Tab Bar */}
+      <div className="flex items-center border-b border-border bg-muted/30">
+        <div className="flex-1 flex items-center overflow-x-auto scrollbar-none">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className={`flex items-center px-3 py-2 text-sm border-r border-border/50 cursor-pointer group relative ${
+                tab.isActive 
+                  ? 'bg-background text-foreground border-b-2 border-primary' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+              onClick={() => handleTabClick(tab.id)}
+            >
+              <span className="flex items-center gap-2 select-none">
+                {getTabIcon(tab.type)}
+                {tab.title}
+              </span>
+              
+              {tabs.length > 1 && (
+                <button
+                  onClick={(e) => handleCloseTab(tab.id, e)}
+                  className="ml-2 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent transition-all"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Tab Actions */}
+        <div className="flex items-center px-2 border-l border-border/50">
+          <div className="relative">
+            <button
+              onClick={() => setShowTabMenu(showTabMenu ? null : 'main')}
+              className="p-1.5 rounded-sm hover:bg-accent transition-colors text-muted-foreground"
+              title="Add new tab"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+
+            {showTabMenu === 'main' && (
+              <div className="absolute right-0 top-8 bg-popover border border-border rounded-md shadow-lg z-10 py-1 min-w-40">
+                <button
+                  onClick={() => {
+                    handleNewTerminal();
+                    setShowTabMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent transition-colors"
+                >
+                  <Terminal className="w-3 h-3" />
+                  New Terminal
+                </button>
+                <button
+                  onClick={() => {
+                    handleNewDiff();
+                    setShowTabMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent transition-colors"
+                >
+                  <FileText className="w-3 h-3" />
+                  New Diff View
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            className="p-1.5 ml-1 rounded-sm hover:bg-accent transition-colors text-muted-foreground"
+            title="Tab options"
+          >
+            <MoreHorizontal className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {renderTabContent()}
+      </div>
+
+      {/* Click outside to close menu */}
+      {showTabMenu && (
+        <div
+          className="fixed inset-0 z-5"
+          onClick={() => setShowTabMenu(null)}
+        />
+      )}
+    </div>
+  );
+};

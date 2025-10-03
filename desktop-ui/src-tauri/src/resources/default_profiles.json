@@ -1,0 +1,95 @@
+{
+  "profiles": [
+    {
+      "name": "Production Amp",
+      "description": "Use production Amp CLI from global installation",
+      "env_vars": {
+        "AMP_BIN": "amp"
+      },
+      "detection_hints": [
+        "Uses globally installed amp binary",
+        "Connects to production Amp servers",
+        "Requires: npm install -g @sourcegraph/amp"
+      ]
+    },
+    {
+      "name": "Local Development",
+      "description": "Use local Amp development server",
+      "env_vars": {
+        "AMP_CLI_PATH": "~/amp/cli/dist/main.js",
+        "AMP_URL": "https://localhost:7002",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      },
+      "detection_hints": [
+        "Requires local Amp development setup",
+        "Server running at localhost:7002",
+        "Bypasses TLS certificate validation"
+      ]
+    },
+    {
+      "name": "Custom CLI Path",
+      "description": "Manually specify Amp CLI location",
+      "env_vars": {
+        "AMP_CLI_PATH": ""
+      },
+      "detection_hints": [
+        "For custom Amp CLI installations",
+        "Specify full path to amp binary or main.js",
+        "Useful for testing different CLI versions"
+      ]
+    },
+    {
+      "name": "Bundled CLI",
+      "description": "Use CLI bundled with desktop app",
+      "env_vars": {},
+      "detection_hints": [
+        "CLI packaged with desktop application",
+        "No additional installation required",
+        "May have version limitations"
+      ]
+    }
+  ],
+  "detection_strategies": {
+    "manual": {
+      "priority": 1,
+      "description": "Check AMP_CLI_PATH environment variable",
+      "env_var": "AMP_CLI_PATH"
+    },
+    "bundled": {
+      "priority": 2,
+      "description": "Look for CLI in app bundle resources",
+      "search_paths": [
+        "resources/bin/amp",
+        "resources/amp/amp",
+        "resources/amp"
+      ]
+    },
+    "global": {
+      "priority": 3,
+      "description": "Find globally installed CLI",
+      "commands": {
+        "unix": "which amp",
+        "windows": "where amp"
+      }
+    },
+    "dev-home": {
+      "priority": 4,
+      "description": "Look for development CLI in ~/amp",
+      "search_paths": [
+        "~/amp/cli/dist/main.js",
+        "~/amp/bin/amp",
+        "~/amp/target/release/amp",
+        "~/amp/target/debug/amp"
+      ]
+    }
+  },
+  "validation": {
+    "timeout_seconds": 2,
+    "version_command": "--version",
+    "required_commands": ["--version", "--help"],
+    "compatibility_check": {
+      "min_version": "0.1.0",
+      "version_regex": "\\d+\\.\\d+\\.\\d+"
+    }
+  }
+}

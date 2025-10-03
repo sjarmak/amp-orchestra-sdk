@@ -1,0 +1,7 @@
+#!/bin/bash
+echo "🎉 Hello from Amp Toolbox!"
+echo "Tool name: hello-amp"
+echo "Current directory: $(pwd)"
+echo "PATH: $PATH"
+echo "AMP_TOOLBOX: $AMP_TOOLBOX"
+echo "Timestamp: $(date)"

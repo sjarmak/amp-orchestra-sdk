@@ -1,0 +1,83 @@
+import React from 'react'
+import { X, Plus } from 'lucide-react'
+import { useTerminalSessions, AmpProfileKind } from './TerminalSessionProvider'
+
+interface TerminalTabsProps {
+  profile: AmpProfileKind
+  onCreateSession: (profile: AmpProfileKind) => void
+}
+
+// Profile badge color
+function getProfileBadgeColor(profile: AmpProfileKind): string {
+  return profile === 'dev' ? 'bg-blue-500' : 'bg-green-500'
+}
+
+export function TerminalTabsNew({ profile, onCreateSession }: TerminalTabsProps) {
+  const { sessions, activeId, setActiveId, closeSession } = useTerminalSessions()
+
+  // Filter sessions for the current profile/environment
+  const profileSessions = sessions.filter(session => session.profile === profile)
+
+  const handleTabClick = (sessionId: string) => {
+    setActiveId(sessionId)
+  }
+
+  const handleCloseTab = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    closeSession(sessionId)
+  }
+
+  const handleCreateSession = () => {
+    onCreateSession(profile)
+  }
+
+  return (
+    <div className="flex items-center bg-muted/10 border-b border-border px-2 py-1 gap-1">
+      {profileSessions.map((session, index) => {
+        return (
+          <div
+            key={session.id}
+            className={`
+              flex items-center px-3 py-1.5 rounded-md text-sm cursor-pointer
+              transition-colors duration-200 min-w-0 gap-2
+              ${activeId === session.id 
+                ? 'bg-primary text-primary-foreground' 
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              }
+            `}
+            onClick={() => handleTabClick(session.id)}
+          >
+            {/* Profile badge */}
+            <div className={`w-2 h-2 rounded-full ${getProfileBadgeColor(session.profile)}`} />
+            
+            <span className="truncate">
+              Session #{index + 1}
+            </span>
+            
+            {profileSessions.length > 1 && (
+              <button
+                className="ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive"
+                onClick={(e) => handleCloseTab(session.id, e)}
+                title="Close terminal"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )
+      })}
+      
+      {/* New Session Button */}
+      <button
+        className="flex items-center px-2 py-1.5 rounded-md text-sm
+                   bg-muted/50 text-muted-foreground hover:bg-muted
+                   transition-colors duration-200 gap-1"
+        onClick={handleCreateSession}
+        title={`New ${profile === 'dev' ? 'development' : 'production'} session`}
+      >
+        <Plus className="w-4 h-4" />
+        <span className="text-xs">New</span>
+      </button>
+    </div>
+  )
+}

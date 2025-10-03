@@ -1,0 +1,216 @@
+#!/usr/bin/env node
+
+// Amp Toolbox executable: "orchestra-ui"
+// Automates the Amp Orchestra Tauri app on macOS via AppleScript (osascript).
+// Usage within Amp: set AMP_TOOLBOX to this directory. Amp will call with TOOLBOX_ACTION=describe|execute.
+
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+
+const DEFAULT_BUNDLE_ID = 'com.sjarmak.amp-orchestra'
+
+const action = process.env.TOOLBOX_ACTION
+
+if (action === 'describe') {
+  describe()
+  process.exit(0)
+}
+if (action === 'execute') {
+  try {
+    const input = fs.readFileSync(0, 'utf8') || '{}'
+    const args = JSON.parse(input)
+    execute(args)
+  } catch (err) {
+    console.error(String(err))
+    process.exit(1)
+  }
+} else {
+  // Fallback: print description (helps when running manually)
+  describe()
+}
+
+function describe() {
+  const spec = {
+    name: 'orchestra-ui',
+    description:
+      'Automate the Amp Orchestra Tauri app UI on macOS: launch/focus/keystroke/menu/paste/type/quit/sleep/webviewEval. Args: cmd, text?, modifiers?, bundleId?, delayMs?, expr?',
+    args: {
+      cmd: [
+        'string',
+        'one of: launch, focus, keystroke, typeText, paste, menu, quit, sleep, webviewEval',
+      ],
+      text: ['string', 'text to type, paste, or menu path (e.g. "Amp Orchestra > Quit")'],
+      modifiers: [
+        'string[]',
+        'for keystroke: any of command, option, control, shift',
+      ],
+      bundleId: ['string', `macOS bundle identifier (default ${DEFAULT_BUNDLE_ID})`],
+      delayMs: ['number', 'sleep milliseconds (with cmd = sleep)'],
+      expr: ['string', 'JavaScript expression to evaluate in WebView (with cmd = webviewEval)'],
+    },
+  }
+  process.stdout.write(JSON.stringify(spec))
+}
+
+function ap(run) {
+  const res = spawnSync('osascript', ['-e', run], { stdio: ['ignore', 'pipe', 'pipe'] })
+  if (res.status !== 0) {
+    const err = res.stderr?.toString() || 'osascript error'
+    throw new Error(err)
+  }
+  return res.stdout?.toString() ?? ''
+}
+
+function activate(bundleId) {
+  ap(`tell application id "${bundleId}" to activate`)
+}
+
+function launch(bundleId) {
+  // Launch and focus
+  ap(`tell application id "${bundleId}" to activate`)
+}
+
+function quit(bundleId) {
+  ap(`tell application id "${bundleId}" to quit`)
+}
+
+function keystroke(text, modifiers = []) {
+  const mods = modifiers.map(m => m.toLowerCase()).filter(Boolean)
+  const modStr = mods.length ? ` using {${mods.map(m => `${m} down`).join(', ')}}` : ''
+  ap(`tell application "System Events" to keystroke ${encodeAppleScriptString(text)}${modStr}`)
+}
+
+function typeText(text) {
+  ap(`tell application "System Events" to keystroke ${encodeAppleScriptString(text)}`)
+}
+
+function paste(text) {
+  // Set clipboard then Cmd+V
+  ap(
+    `set the clipboard to ${encodeAppleScriptString(text)}\n` +
+      `tell application "System Events" to keystroke "v" using {command down}`,
+  )
+}
+
+function clickMenu(path, bundleId) {
+  // path format: "App > Menu > Item"
+  const parts = path.split('>').map(s => s.trim()).filter(Boolean)
+  if (parts.length < 2) throw new Error('menu path must be like: "Amp Orchestra > Quit"')
+  const [appName, ...rest] = parts
+  const menu = rest.slice(0, -1).join('", "')
+  const item = rest[rest.length - 1]
+  // Ensure app is active so menu bar belongs to it
+  activate(bundleId)
+  const script = `
+    tell application "System Events"
+      tell process ${encodeAppleScriptString(appName)}
+        click menu item ${encodeAppleScriptString(item)} of menu ${rest.length > 1 ? `menu ${encodeAppleScriptString(rest[rest.length - 2])} of ` : ''}menu bar 1 of menu bar item ${encodeAppleScriptString(rest[0])} of menu bar 1
+      end tell
+    end tell
+  `
+  ap(script)
+}
+
+function webviewEval(bundleId, expr) {
+  // Evaluate JavaScript expression in the Tauri WebView and return result
+  // First ensure the app is active
+  activate(bundleId)
+  
+  // Use AppleScript to execute JavaScript in the WebView and capture the result
+  const escapedExpr = expr.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const script = `
+    tell application id "${bundleId}"
+      set jsResult to do JavaScript "${escapedExpr}" in (get front document)
+      return jsResult
+    end tell
+  `
+  
+  try {
+    const result = ap(script).trim()
+    // Try to parse as JSON if possible, otherwise return as string
+    try {
+      return JSON.parse(result)
+    } catch {
+      return result
+    }
+  } catch (err) {
+    // If AppleScript approach fails, try alternative approach using System Events
+    try {
+      const altScript = `
+        tell application id "${bundleId}"
+          activate
+        end tell
+        delay 0.1
+        tell application "System Events"
+          tell process (get name of application id "${bundleId}")
+            set frontmost to true
+          end tell
+        end tell
+        tell application id "${bundleId}"
+          set jsResult to do JavaScript "${escapedExpr}" in (get front document)
+          return jsResult
+        end tell
+      `
+      const result = ap(altScript).trim()
+      try {
+        return JSON.parse(result)
+      } catch {
+        return result
+      }
+    } catch (secondErr) {
+      throw new Error(`WebView JavaScript evaluation failed: ${err.message}`)
+    }
+  }
+}
+
+function encodeAppleScriptString(s) {
+  // Escape quotes
+  const esc = s.replace(/\\/g, '\\\\').replace(/\"/g, '\\\"')
+  return `"${esc}"`
+}
+
+function execute(rawArgs) {
+  const cmd = String(rawArgs.cmd || '').trim()
+  const text = typeof rawArgs.text === 'string' ? rawArgs.text : ''
+  const modifiers = Array.isArray(rawArgs.modifiers) ? rawArgs.modifiers : []
+  const bundleId = String(rawArgs.bundleId || DEFAULT_BUNDLE_ID)
+  const delayMs = Number.isFinite(rawArgs.delayMs) ? Number(rawArgs.delayMs) : 0
+  const expr = typeof rawArgs.expr === 'string' ? rawArgs.expr : ''
+
+  switch (cmd) {
+    case 'launch':
+      launch(bundleId)
+      break
+    case 'focus':
+      activate(bundleId)
+      break
+    case 'keystroke':
+      if (!text) throw new Error('text is required for keystroke')
+      keystroke(text, modifiers)
+      break
+    case 'typeText':
+      if (!text) throw new Error('text is required for typeText')
+      typeText(text)
+      break
+    case 'paste':
+      paste(text || '')
+      break
+    case 'menu':
+      if (!text) throw new Error('text is required for menu path')
+      clickMenu(text, bundleId)
+      break
+    case 'quit':
+      quit(bundleId)
+      break
+    case 'sleep':
+      if (delayMs > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs)
+      break
+    case 'webviewEval':
+      if (!expr) throw new Error('expr is required for webviewEval')
+      const result = webviewEval(bundleId, expr)
+      process.stdout.write(JSON.stringify(result))
+      break
+    default:
+      throw new Error(`unknown cmd: ${cmd}`)
+  }
+}

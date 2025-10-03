@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session Functionality Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .session-name { 
+            font-weight: bold; 
+            cursor: pointer; 
+            color: #0066cc; 
+            text-decoration: underline;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+        .session-name:hover { color: #004499; }
+        .tooltip { 
+            position: relative; 
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Session Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Session Name Click-to-Rename</h2>
+        <p>✅ Session names are now clickable for renaming</p>
+        <p>✅ Added cursor pointer and hover effects</p>
+        <p>✅ Click triggers the existing handleStartRename function</p>
+        <div class="session-name" onclick="testRename()">
+            Click me to test rename functionality
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Creation Date Tooltips</h2>
+        <p>✅ Added formatTooltipDate function to format timestamps</p>
+        <p>✅ Shows creation date on hover using HTML title attribute</p>
+        <div class="tooltip" title="Created: 9/9/2025 10:30:00 AM">
+            Hover over me to see creation date tooltip
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Date Formatting</h2>
+        <p>✅ Uses toLocaleDateString() and toLocaleTimeString() for proper formatting</p>
+        <p>✅ Shows in user's local timezone and format</p>
+        <div id="date-examples"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Implementation Summary</h2>
+        <ul>
+            <li>✅ Made session names clickable by adding onClick handler and cursor pointer</li>
+            <li>✅ Added hover effect with text-primary color</li>
+            <li>✅ Added formatTooltipDate function for proper date formatting</li>
+            <li>✅ Added title attribute with creation date to session names</li>
+            <li>✅ Maintained existing rename functionality</li>
+            <li>✅ Build passes without errors</li>
+            <li>✅ TypeScript typecheck passes</li>
+        </ul>
+    </div>
+
+    <script>
+        function testRename() {
+            alert('Session rename would be triggered here!\nThis simulates clicking on a session name.');
+        }
+
+        // Show example date formatting
+        const now = Date.now();
+        const examples = document.getElementById('date-examples');
+        const formatTooltipDate = (timestamp) => {
+            const date = new Date(timestamp);
+            return `Created: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+        };
+        
+        examples.innerHTML = `
+            <p><strong>Example formatting:</strong></p>
+            <p>Now: ${formatTooltipDate(now)}</p>
+            <p>1 hour ago: ${formatTooltipDate(now - 3600000)}</p>
+            <p>Yesterday: ${formatTooltipDate(now - 86400000)}</p>
+        `;
+    </script>
+</body>
+</html>

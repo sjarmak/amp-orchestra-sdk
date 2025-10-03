@@ -1,0 +1,69 @@
+name: Toolbox Resolver Tests
+on:
+  push:
+    paths:
+      - '.github/workflows/toolbox-resolver.yml'
+      - 'desktop-ui/src-tauri/src/runtime_env.rs'
+      - 'desktop-ui/src-tauri/src/toolbox_resolver.rs'
+      - 'desktop-ui/src-tauri/src/**.rs'
+  pull_request:
+    paths:
+      - 'desktop-ui/src-tauri/src/runtime_env.rs'
+      - 'desktop-ui/src-tauri/src/toolbox_resolver.rs'
+      - 'desktop-ui/src-tauri/src/**.rs'
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests (flag off) - Unix
+        if: runner.os != 'Windows'
+        run: |
+          cd desktop-ui/src-tauri
+          cargo test --all --locked
+
+      - name: Run tests (flag off) - Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cd desktop-ui\src-tauri
+          cargo test --all --locked
+
+      - name: Run tests (flag on) - Unix
+        if: runner.os != 'Windows'
+        env:
+          AMP_ENABLE_TOOLBOXES: '1'
+        run: |
+          cd desktop-ui/src-tauri
+          cargo test --all --locked
+
+      - name: Run tests (flag on) - Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          AMP_ENABLE_TOOLBOXES: '1'
+        run: |
+          cd desktop-ui\src-tauri
+          cargo test --all --locked
+
+      - name: Run PTY smoke test - Unix
+        if: runner.os != 'Windows'
+        run: |
+          cd desktop-ui/src-tauri
+          cargo test --test pty_smoke_test --locked -- --nocapture
+
+      - name: Run PTY smoke test - Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cd desktop-ui\src-tauri
+          cargo test --test pty_smoke_test --locked -- --nocapture

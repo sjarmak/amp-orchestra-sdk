@@ -1,0 +1,5 @@
+#!/bin/bash
+echo "📁 Listing files in current directory:"
+ls -la
+echo ""
+echo "🔧 This tool is running from toolbox: $AMP_TOOLBOX"

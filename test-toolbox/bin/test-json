@@ -1,0 +1,2 @@
+#!/bin/bash
+echo '{"status": "success", "message": "Test tool executed successfully", "toolbox": "'$AMP_TOOLBOX'", "timestamp": "'$(date)'"}'

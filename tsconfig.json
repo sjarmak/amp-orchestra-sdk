@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true
+  },
+  "references": [
+    { "path": "./packages/amp-backend-core" },
+    { "path": "./packages/amp-client" },
+    { "path": "./packages/workspace" },
+    { "path": "./packages/shared" },
+    { "path": "./apps/desktop" }
+  ]
+}

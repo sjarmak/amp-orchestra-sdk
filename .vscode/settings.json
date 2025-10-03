@@ -1,0 +1,8 @@
+{
+    "java.jdt.ls.java.home": "/Users/sjarmak/.local/share/mise/installs/java/temurin-21.0.8+9.0.LTS",
+    "java.import.gradle.java.home": "/Users/sjarmak/.local/share/mise/installs/java/temurin-21.0.8+9.0.LTS",
+    "debug.javascript.defaultRuntimeExecutable": {
+        "pwa-node": "/Users/sjarmak/.local/share/mise/shims/node"
+    },
+    "python.defaultInterpreterPath": "/Users/sjarmak/.local/share/mise/installs/python/3.12.11/bin/python"
+}

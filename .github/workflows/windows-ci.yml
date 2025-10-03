@@ -1,0 +1,168 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-ci.yml'
+      - 'desktop-ui/src-tauri/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-ci.yml'
+      - 'desktop-ui/src-tauri/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+jobs:
+  windows-build-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # Use PowerShell as default shell
+      SHELL: powershell
+      # Set Node options for Windows
+      NODE_OPTIONS: '--max-old-space-size=8192'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install system dependencies (Windows)
+        shell: powershell
+        run: |
+          # Install winpty for PTY support on Windows
+          choco install winpty -y
+          # Add winpty to PATH
+          $env:PATH += ";C:\tools\winpty\bin"
+          echo "PATH=$env:PATH" >> $env:GITHUB_ENV
+
+      - name: Install JavaScript dependencies
+        shell: powershell
+        run: |
+          Write-Host "Installing pnpm dependencies..."
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "pnpm install failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Build packages
+        shell: powershell
+        run: |
+          Write-Host "Building all packages..."
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Build failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Run TypeScript typecheck
+        shell: powershell
+        run: |
+          Write-Host "Running TypeScript typecheck..."
+          pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Typecheck failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Run JavaScript tests
+        shell: powershell
+        run: |
+          Write-Host "Running JavaScript tests..."
+          pnpm test
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "JS tests failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Build Rust project
+        shell: powershell
+        run: |
+          Write-Host "Building Rust project..."
+          cd desktop-ui\src-tauri
+          cargo build --release --locked
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Rust build failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Run Rust tests
+        shell: powershell
+        run: |
+          Write-Host "Running Rust tests..."
+          cd desktop-ui\src-tauri
+          cargo test --all --locked
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Rust tests failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Run PTY smoke test
+        shell: powershell
+        run: |
+          Write-Host "Running PTY smoke test..."
+          cd desktop-ui\src-tauri
+          cargo test --test pty_smoke_test --locked -- --nocapture
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "PTY smoke test failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Test toolbox resolver (flag off)
+        shell: powershell
+        run: |
+          Write-Host "Testing toolbox resolver (flag off)..."
+          cd desktop-ui\src-tauri
+          cargo test toolbox_resolver --locked
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Toolbox resolver tests failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Test toolbox resolver (flag on)
+        shell: powershell
+        env:
+          AMP_ENABLE_TOOLBOXES: '1'
+        run: |
+          Write-Host "Testing toolbox resolver (flag on)..."
+          cd desktop-ui\src-tauri
+          cargo test toolbox_resolver --locked
+          if ($LASTEXITCODE -ne 0) { 
+            Write-Error "Toolbox resolver tests (flag on) failed"
+            exit $LASTEXITCODE 
+          }
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-artifacts
+          path: |
+            desktop-ui/src-tauri/target/release/
+            packages/*/dist/
+          retention-days: 1

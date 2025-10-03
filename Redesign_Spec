@@ -1,0 +1,400 @@
+# Amp Orchestra — Redesign Spec v2 (with Agent Modes & Toolboxes)
+
+> Goal: deliver a Conductor.build–style desktop app tailored for **Sourcegraph Amp** that supports rapid local/prod switching, parallel/batched agent runs with optional isolated **git worktrees**, integrated **benchmark + regression** evaluation with rich, exportable metrics, **experimental agent mode switching**, and **custom toolboxes** via `AMP_TOOLBOX`.
+
+---
+
+## 0) High‑level objectives
+
+1. **Rapid iteration (dev)**
+
+   - One‑click switch between **Local Amp** and **Production Amp** backends.
+   - Hot‑reloadable **Run Presets** (YAML/JSON) for model/tooling/options.
+   - Support for **agentModes** (default, geppetto, claudetto, gronk‑fast, bolt, etc.).
+   - Ephemeral “scratch” runs that don’t clutter persistent history unless promoted.
+
+2. **Parallelization & isolation**
+
+   - **Batch Runs**: fan‑out N parallel runs.
+   - **Run Variants**: matrix over models, alloy modes, agentModes, prompts, tools, repo states.
+   - **Worktree Manager**: optional isolated **git worktrees** per run.
+
+3. **Benchmarks & regressions**
+
+   - Built‑in **Benchmark Harness** and **Regression Runner**.
+   - Exportable metrics with artifact diffs, tool traces, commit timelines.
+
+4. **Observability & exports**
+
+   - **Metrics schema** enriched with: time, cost, tokens, interventions, files changed, exit status.
+   - Exports to **JSONL/CSV/MD/HTML** for customers.
+
+5. **Custom Toolboxes**
+
+   - Support for `AMP_TOOLBOX` env variable per Run.
+   - UI selector for curated toolboxes per Project.
+   - Option to create/modify shell‑script tools through Amp itself.
+   - Quick‑switch between multiple MCP servers + local toolboxes.
+
+---
+
+## 1) Agent mode support
+
+### agentModes (dev only)
+
+- `default`: Claude 4 Sonnet driving everything.
+- `geppetto:main`: GPT‑5 (optimized prompts).
+- `claudetto:main`: GPT‑5 + Sonnet 4 hybrid.
+- `gronk-fast:main`: grok‑code‑fast‑1 main agent.
+- `gronk-fast:search`: grok‑code‑fast‑1 search subagent.
+- `gronk-fast:main+search`: grok‑code‑fast‑1 for both main + search.
+- `bolt:search`: Qwen 3 Coder for search subagent.
+
+### Implementation steps
+
+1. Add **agentMode field** to Preset + Variant.
+2. Extend **AmpConnection** abstraction to advertise supported modes.
+3. Frontend: dropdown selector (visible only in dev mode).
+4. Backend: pass `--agent-mode <mode>` to Amp CLI when spawning.
+5. Store selected agentMode in Run + Metrics.
+6. Testing:
+
+   - Mock Amp CLI to echo active mode.
+   - E2E: launch variants with different modes, confirm logs + metrics capture mode.
+
+---
+
+## 2) Toolbox support
+
+### Goals
+
+- Seamless selection of curated toolboxes per Project.
+- Enable user‑created tools via `AMP_TOOLBOX=<path>`.
+- Allow Amp to generate/modify tools on request.
+
+### Implementation steps
+
+1. **DB schema**: add `toolbox_path` column to Preset + Run.
+2. **UI**: file picker + list of known toolboxes.
+3. **Env setup**: before launching Amp process, set `AMP_TOOLBOX=<path>`.
+4. **Agent integration**: surface available tools in `capabilities` payload.
+5. **Tool creation flow**:
+
+   - User selects “New Tool” → Amp generates script skeleton in toolbox.
+   - User edits/validates script; Amp can refine iteratively.
+
+6. Testing:
+
+   - Integration: ensure Amp sees tools from selected toolbox.
+   - E2E: create custom tool, invoke it, verify execution.
+
+---
+
+## 3) Extended domain model updates
+
+- **Preset** now includes: `agentMode`, `toolboxPath`.
+- **Variant** matrix expansion includes agentMode + toolboxPath.
+- **Metrics** record `agent_mode` + `toolbox_path`.
+
+---
+
+## 4) Example Preset JSON
+
+```json
+{
+  "models": ["gpt-5"],
+  "alloy": "standard",
+  "agentMode": "geppetto:main",
+  "tools": ["git", "shell", "browser"],
+  "toolboxPath": "~/amp_tools/my_project_tools",
+  "limits": { "max_turns": 30, "max_tokens": 300000 }
+}
+```
+
+---
+
+## 5) Testing matrix
+
+**Unit**
+
+- Preset save/load with agentMode + toolboxPath.
+- CLI invocation includes `--agent-mode` and env var.
+
+**Integration**
+
+- Amp stub responds with active mode + tools.
+- Worktree manager unaffected by toolbox changes.
+
+**E2E**
+
+- Launch Run with different agentModes, verify correct model selection.
+- Switch toolbox, create tool, call tool, confirm execution.
+
+---
+
+## 6) Migration plan
+
+1. Schema migration: add `agent_mode` + `toolbox_path`.
+2. Update Preset/Run CRUD APIs.
+3. Add UI controls gated by `devMode` flag for agentModes.
+4. Add toolbox selector to Run creation screen.
+5. Verify legacy Runs load with `agent_mode = default` and `toolbox_path = null`.
+
+---
+
+## 7) Immediate dev tasks
+
+1. Update SQLite schema and Rust types.
+2. Implement Amp CLI spawn wrapper with `agent-mode` flag + `AMP_TOOLBOX` env.
+3. Add dropdown UI for agentMode (dev only).
+4. Add toolbox file picker UI.
+5. Write integration tests for CLI arg/env propagation.
+6. Extend metrics collector with `agent_mode` + `toolbox_path`.
+7. Build E2E test: matrix run across multiple agentModes + toolboxes.
+
+---
+
+## 21) Dev‑only Agent Modes & Scaffold Routing
+
+**Background.** In development, `amp.experimental.agentModesetting` controls which **model stack & agentic scaffold** Amp uses for the main agent and certain subagents (e.g., `search`). We need first‑class support to: (a) set this quickly per Run/Variant, (b) combine it with matrix execution, (c) enforce **dev‑only** gating so production remains on the default.
+
+### Supported values (initial)
+
+- `default` → production behavior (Claude 4 Sonnet drives everything)
+- `geppetto:main` → GPT‑5 main agent (GPT‑5‑optimized prompts)
+- `claudetto:main` → GPT‑5 + Sonnet 4 hybrid
+- `gronk-fast:main` → `grok-code-fast-1` main agent
+- `gronk-fast:search` → `grok-code-fast-1` for the **search** subagent
+- `gronk-fast:main+search` → `grok-code-fast-1` for main and search subagent
+- `bolt:search` → **Qwen 3 Coder** for the search subagent
+
+> Note: **Only enabled when the active Environment is Local (Development)**. Production runs always coerce to `default`.
+
+### Data model additions
+
+- Extend **presets.config_json** and **variants.matrix_key** to include:
+
+```json
+{
+  "agentMode": "default | geppetto:main | claudetto:main | gronk-fast:main | gronk-fast:search | gronk-fast:main+search | bolt:search"
+}
+```
+
+- Persist an `agent_mode` on **runs** (nullable), and on **variants** (resolved value) for auditability.
+
+### Runtime wiring (Rust)
+
+- When spawning the Amp CLI child process for a Variant:
+
+  - If `env.kind == Local` → set **CLI flag or env** to drive the mode:
+
+    - Prefer: `AMP_EXPERIMENTAL_AGENT_MODE=...` (if exposed) else `--experimental.agentModesetting ...` (exact mechanism mirrors Amp CLI expectations).
+
+  - If `env.kind != Local` → **omit** any mode override.
+
+- Add a **capabilities handshake** (`test_env`) to detect supported modes from local Amp; grey out unsupported values in UI.
+
+### UI/UX
+
+- In **Run → Variants → Settings** show **Agent Mode** dropdown (dev only).
+- In **Matrix Builder**, allow `agentMode` as a dimension.
+- In **Run summary**, surface chips like `Mode: geppetto:main` for each Variant.
+
+### Metrics
+
+- Record on the Metrics payload: `agent_mode`, `models_invoked[]`, `alloy_chain[]` (if hybrid), and `subagent_overrides` map.
+
+---
+
+## 22) Toolbox Manager & MCP Integration
+
+We want seamless switching among curated toolboxes and easy authoring of **custom shell‑script tools**, plus optional **MCP servers**.
+
+### Concepts
+
+- **Toolbox**: a filesystem path whose scripts are exposed to Amp via `AMP_TOOLBOX=<path>`.
+- **Toolbox Set**: an ordered list of toolboxes resolved into a **runtime toolbox dir** (symlink fan‑in) so multiple paths behave like one.
+- **MCP Registry**: list of MCP servers with connection specs (host/port/credentials). Stored per **Project** but overridable per **Run**.
+
+### Storage additions
+
+- New table **toolboxes** `{ id, project_id, name, path, created_at }`.
+- New table **toolbox_sets** `{ id, project_id, name }` and **toolbox_set_items** `{ set_id, toolbox_id, order }`.
+- New table **mcps** `{ id, project_id, name, endpoint, auth_ref, config_json }`.
+- On **runs**/**variants** store `toolbox_set_id` and `mcp_ids[]` (as JSON) for the resolved runtime.
+
+### Runtime wiring
+
+1. **Resolve Toolbox Set** → create a temp dir `~/.amp-orchestra/runtime_toolboxes/<run>/<variant>/` with symlinks to each selected toolbox path (order preserved; last‑write wins).
+2. Spawn Amp child with env:
+
+   - `AMP_TOOLBOX=<resolved_temp_dir>`
+   - Optionally extend `PATH` so helper binaries inside toolboxes are callable.
+
+3. Write a generated `mcp_config.json` for the Variant (if needed by Amp) and pass `AMP_MCP_CONFIG=<path>` or appropriate CLI flag.
+4. Cleanup temp dir on completion unless `keep_artifacts` policy is set.
+
+### Authoring & editing custom tools
+
+- **Toolsmith flow** (from UI or via Amp prompt):
+
+  - “Create tool” wizard asks: `name`, `description`, `schema (args)`, `script template`.
+  - Generates `tool-name` file with executable bit and a minimal wrapper (bash or node) reading args from JSON on STDIN.
+  - Adds a **manifest** `tool-name.json` (optional) describing inputs/outputs for discoverability.
+  - On save, reload toolbox; quick “lint” checks: shebang present, executable bit set, script returns non‑zero on error, prints JSON.
+
+- “Modify tool” launches editor in preferred IDE; changes hot‑reloaded into runtime toolbox dir.
+
+### UI/UX
+
+- **Project → Tools**: list of toolboxes; add/remove; verify.
+- **Run config**: select **Toolbox Set** and **MCP servers**; show a health status.
+- **Variant card**: chips for `Toolbox: <name>` and `MCP: N`.
+
+### Metrics
+
+- Record `tools_available_count`, `tools_used[]` (name, count), and failures with stderr excerpts.
+
+---
+
+## 23) Step‑by‑step Implementation Plan (agent modes + toolboxes + MCP)
+
+### Phase A — Schema & config
+
+1. **Migrations**: add `agent_mode` on runs/variants; add toolboxes\*, toolbox_sets\*, set_items\*, mcps\*.
+2. **Preset schema** update: support `agentMode`, `toolboxSet`, `mcpServers[]`.
+3. **Capability probe**: extend `test_env()` to report `supportsAgentModes: true/false` and `supportedModes[]` for local Amp.
+
+### Phase B — Runtime & process spawn
+
+4. Implement **Toolbox Resolver**: build temp dir, symlinks, env composition, cleanup policy.
+5. Extend **Execution start** to set `AMP_TOOLBOX`, `PATH`, `AMP_EXPERIMENTAL_AGENT_MODE` and MCP config env/flags based on Variant.
+6. Implement **dev‑only gating**: if env.kind != Local then coerce `agent_mode` to `default` and log a notice.
+
+### Phase C — UI flows
+
+7. Add **Agent Mode** dropdown (dev only). Disable when env is production.
+8. Add **Toolbox Set** picker and **MCP picker** to Run creation and Variant edit.
+9. Add **Toolsmith** modal for create/modify tool; surface lint results.
+
+### Phase D — Matrix + Reports
+
+10. Make `agentMode` a matrix axis; include mode in `matrix_key`.
+11. Extend metrics collector with `agent_mode`, `subagent_overrides`, `tools_used`.
+12. Update HTML/MD report exporter to include per‑mode comparisons.
+
+### Phase E — Authoring experience
+
+13. Add **“Generate a new tool from prompt”** action: forwards spec to Amp which writes the script into the currently selected toolbox; run lint + test.
+14. Add **“Modify existing tool”** action: Amp proposes diff; user approves to write.
+
+### Phase F — Hardening
+
+15. Sandbox: validate toolbox paths (no traversal), enforce executable size limits, redact secrets in logs.
+16. Add retry/backoff for MCP connection failures; mark unavailable tools gracefully.
+
+---
+
+## 24) Detailed Test Plan
+
+### Unit tests (Rust)
+
+- **Agent mode gating**: production env → always `default`; local env → passthrough selected mode.
+- **Env composition**: child process receives `AMP_TOOLBOX`, PATH addition, and agent mode; rejects invalid paths.
+- **Toolbox resolver**: creates symlink fan‑in correctly; deterministic override order.
+- **MCP config writer**: schema‑valid JSON written and referenced; missing creds → clear error.
+
+### Integration tests
+
+- **Fake Amp CLI** (shim binary) that echoes back received env/flags and pretends to run; assert our wiring.
+- **Toolsmith flow**: create tool, set +x, run via Amp; modification persists; lint catches missing shebang.
+- **Matrix**: run with `agentMode` axis over 3 values; ensure 3 Variants spawn with correct env.
+- **Worktrees**: with `isolated` policy, verify edits do not touch main working copy; diffs/commits captured per Variant.
+
+### E2E tests (WebView + real local Amp)
+
+- Switch between **Development** and **Production** and verify UI gating and runtime behavior.
+- Select multiple **Toolbox Sets** and confirm tool discovery in the agent chat (e.g., tool list intent).
+- Run a **benchmark suite** twice with different modes (`default` vs `geppetto:main`); verify report shows metric deltas.
+
+### Regression harness
+
+- Baseline run on `default`; new run on `claudetto:main`; expected:
+
+  - No more than +10% `cost_total_usd`
+  - `score_total` ≥ baseline; `time_to_completion` not worse than 2×.
+  - Failing assertions dump diffs and traces.
+
+---
+
+## 25) Coding‑agent Hand‑off Checklist (copy/paste into an Amp task)
+
+1. **DB**: Apply migrations adding agent_mode, toolboxes, toolbox_sets, toolbox_set_items, mcps.
+2. **Runtime**: Implement Toolbox Resolver and MCP config writer; wire env vars when spawning Amp.
+3. **Gating**: If environment ≠ Local, force `agent_mode=default`.
+4. **Capabilities**: Implement `test_env()` to list supported modes; surface in UI.
+5. **UI**: Add pickers for Agent Mode (dev‑only), Toolbox Set, and MCP; add Toolsmith modal with lint.
+6. **Matrix**: Add `agentMode` dimension and include in `matrix_key`.
+7. **Metrics**: Record `agent_mode`, `models_invoked[]`, `tools_used[]`.
+8. **Reports**: Update exporter to compare metrics across modes.
+9. **Tests**: Implement unit + integration + E2E per the Detailed Test Plan.
+10. **Docs**: Update README/SETUP with examples for creating toolboxes, adding MCPs, and using agent modes.
+
+---
+
+## 26) Example configs & snippets
+
+**Preset JSON with mode + toolboxes + MCP**
+
+```json
+{
+  "agentMode": "geppetto:main",
+  "toolboxSet": "core+project",
+  "mcpServers": ["playwright", "deepsearch"],
+  "models": ["gpt-5-thinking"],
+  "tools": ["git", "shell", "browser"],
+  "limits": { "max_turns": 40, "max_tokens": 500000 }
+}
+```
+
+**Matrix with agentMode axis**
+
+```yaml
+variants:
+  agentMode: ["default", "geppetto:main", "claudetto:main"]
+  seed: [11, 42]
+limits:
+  max_parallel: 4
+```
+
+**Spawn env (pseudo‑Rust)**
+
+```rust
+let mut cmd = Command::new(amp_path);
+cmd.env("AMP_TOOLBOX", resolved_toolbox_dir);
+cmd.env("PATH", format!("{}:{}", resolved_toolbox_bin, current_path));
+if env.kind == EnvKind::Local {
+   cmd.env("AMP_EXPERIMENTAL_AGENT_MODE", agent_mode_str);
+}
+if let Some(cfg) = mcp_cfg_path { cmd.env("AMP_MCP_CONFIG", cfg); }
+```
+
+**Tool template (bash)**
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+args=$(cat) # JSON on stdin
+# parse with jq if available, or simple POSIX parsing
+# echo JSON result
+printf '{"ok":true,"message":"hello"}'
+```
+
+---
+
+## 27) Maintainability notes
+
+- Keep **mode routing** isolated behind a single module (`agent_mode.rs`); no ad‑hoc checks.
+- Centralize **env composition** (`runtime_env.rs`) with typed inputs; unit test thoroughly.
+- Prefer **capability discovery** over hardcoding; the UI binds to the discovered list.
+- All new features degrade gracefully: production path unaffected, and missing toolboxes/MCPs surface non‑fatal warnings.

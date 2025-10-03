@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "unified-core",
+    "desktop-ui/src-tauri"
+]
+
+# Workspace-wide feature flags
+[workspace.metadata.features]
+legacy_node = "Enable legacy Node.js integration compatibility layer"
+
+[workspace.dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+async-trait = "0.1"
+sqlx = { version = "0.8", features = ["sqlite", "chrono", "uuid"] }
+log = "0.4"
+tempfile = "3"
+git2 = "0.18"
+tokio-util = { version = "0.7", features = ["io"] }
+fs_extra = "1.3"

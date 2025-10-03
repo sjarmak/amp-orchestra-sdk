@@ -1,0 +1,69 @@
+import { useState } from 'react'
+import { MessageSquare, Terminal } from 'lucide-react'
+
+export type MainViewMode = 'chat' | 'terminal'
+
+interface MainViewToggleProps {
+  defaultMode?: MainViewMode
+  chatContent: React.ReactNode
+  terminalContent: React.ReactNode
+  className?: string
+  onModeChange?: (mode: MainViewMode) => void
+}
+
+export function MainViewToggle({
+  defaultMode = 'chat',
+  chatContent,
+  terminalContent,
+  className = '',
+  onModeChange
+}: MainViewToggleProps) {
+  const [currentMode, setCurrentMode] = useState<MainViewMode>(defaultMode)
+
+  const handleModeChange = (mode: string) => {
+    console.log('MainViewToggle: handleModeChange called with:', mode)
+    const newMode = mode as MainViewMode
+    setCurrentMode(newMode)
+    onModeChange?.(newMode)
+  }
+
+  return (
+    <div className={`flex flex-col h-full ${className}`}>
+      <div className="grid w-full grid-cols-2 mb-2 bg-muted rounded-md p-1">
+        <button
+          onClick={() => handleModeChange('chat')}
+          className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+            currentMode === 'chat'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Chat
+        </button>
+        <button
+          onClick={() => {
+            console.log('Terminal button clicked')
+            handleModeChange('terminal')
+          }}
+          className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
+            currentMode === 'terminal'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          style={{ pointerEvents: 'auto', zIndex: 10 }}
+        >
+          <Terminal className="w-4 h-4" />
+          Terminal
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0">
+        {currentMode === 'chat' && chatContent}
+        {currentMode === 'terminal' && terminalContent}
+      </div>
+    </div>
+  )
+}
+
+export default MainViewToggle

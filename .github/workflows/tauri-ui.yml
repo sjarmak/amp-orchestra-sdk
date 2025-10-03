@@ -1,0 +1,87 @@
+name: Tauri UI E2E
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/tauri-ui.yml']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to test
+        required: false
+        default: main
+      spec:
+        description: Path to E2E spec file (selenium or wdio)
+        required: false
+        default: e2e/ui_smoke.test.mjs
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      TAURI_DRIVER_URL: http://127.0.0.1:4444
+      ARTIFACTS_DIR: artifacts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install tauri-driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0 xvfb
+          cargo install tauri-driver
+
+      - name: Start app (headless)
+        run: |
+          mkdir -p run
+          xvfb-run -a bash -lc "pnpm tauri:dev > run/app.log 2>&1 & echo \$! > run/app.pid"
+          sleep 2
+
+      - name: Wait for app readiness
+        run: |
+          for i in {1..90}; do
+            if grep -Eiq "Tauri|DevServer.*running|tauri:dev" run/app.log; then exit 0; fi
+            if ! kill -0 $(cat run/app.pid) 2>/dev/null; then tail -100 run/app.log; exit 1; fi
+            sleep 1
+          done
+          tail -200 run/app.log
+          exit 1
+
+      - name: Start tauri-driver
+        run: |
+          tauri-driver --port 4444 > run/driver.log 2>&1 & echo $! > run/driver.pid
+          sleep 1
+
+      - name: Run spec
+        run: |
+          mkdir -p $ARTIFACTS_DIR
+          node -e "try{require('selenium-webdriver')}catch{process.exit(1)}" || pnpm add -D selenium-webdriver
+          node "${{ inputs.spec || 'e2e/ui_smoke.test.mjs' }}" > run/test.log 2>&1
+
+      - name: Stop processes
+        if: always()
+        run: |
+          [[ -f run/driver.pid ]] && kill $(cat run/driver.pid) || true
+          [[ -f run/app.pid    ]] && kill $(cat run/app.pid) || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-ui-artifacts
+          path: |
+            ${{ env.ARTIFACTS_DIR }}/
+            run/app.log
+            run/driver.log
+            run/test.log

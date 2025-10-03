@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terminal Theme Test</title>
+    <style>
+        .test-container {
+            width: 300px;
+            height: 200px;
+            margin: 20px;
+            border: 1px solid #ccc;
+            position: relative;
+        }
+        
+        /* Light theme CSS vars */
+        .light {
+            --terminal-background: #ffffff;
+            --terminal-foreground: #000000;
+        }
+        
+        /* Dark theme CSS vars */
+        .dark {
+            --terminal-background: #000000;
+            --terminal-foreground: #ffffff;
+        }
+        
+        /* Xterm CSS simulation */
+        .mock-xterm {
+            width: 100%;
+            height: 100%;
+            background-color: var(--terminal-background);
+            color: var(--terminal-foreground);
+            font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+            padding: 10px;
+            font-size: 13px;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        
+        .theme-toggle {
+            margin: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.2s ease;
+        }
+        
+        body.light {
+            background-color: #ffffff;
+            color: #000000;
+        }
+        
+        body.dark {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="dark">
+    <h1>Terminal Theme Test</h1>
+    <p>This test verifies that terminal theming works correctly with CSS custom properties and smooth transitions.</p>
+    
+    <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+    
+    <h2>Light Theme Preview</h2>
+    <div class="test-container light">
+        <div class="mock-xterm">
+            $ echo "Hello World"<br>
+            Hello World<br>
+            $ ls -la<br>
+            <span style="color: #689d6a;">drwxr-xr-x</span>  5 user  staff   160 Sep 10 12:00 <span style="color: #458588;">.</span><br>
+            <span style="color: #689d6a;">drwxr-xr-x</span> 10 user  staff   320 Sep 10 11:59 <span style="color: #458588;">..</span><br>
+            <span style="color: #cc241d;">-rw-r--r--</span>  1 user  staff   1024 Sep 10 12:00 <span style="color: #d79921;">file.txt</span><br>
+            $
+        </div>
+    </div>
+    
+    <h2>Dark Theme Preview</h2>
+    <div class="test-container dark">
+        <div class="mock-xterm">
+            $ echo "Hello World"<br>
+            Hello World<br>
+            $ ls -la<br>
+            <span style="color: #8ec07c;">drwxr-xr-x</span>  5 user  staff   160 Sep 10 12:00 <span style="color: #83a598;">.</span><br>
+            <span style="color: #8ec07c;">drwxr-xr-x</span> 10 user  staff   320 Sep 10 11:59 <span style="color: #83a598;">..</span><br>
+            <span style="color: #fb4934;">-rw-r--r--</span>  1 user  staff   1024 Sep 10 12:00 <span style="color: #fabd2f;">file.txt</span><br>
+            $
+        </div>
+    </div>
+    
+    <h2>Dynamic Theme Test</h2>
+    <div class="test-container" id="dynamic-terminal">
+        <div class="mock-xterm">
+            $ theme_test<br>
+            Current theme: <span id="theme-status">dark</span><br>
+            Background: <span id="bg-color">#000000</span><br>
+            Foreground: <span id="fg-color">#ffffff</span><br>
+            Click "Toggle Theme" to see the transition!<br>
+            $
+        </div>
+    </div>
+    
+    <script>
+        let isDark = true;
+        const body = document.body;
+        const dynamicTerminal = document.getElementById('dynamic-terminal');
+        const themeStatus = document.getElementById('theme-status');
+        const bgColor = document.getElementById('bg-color');
+        const fgColor = document.getElementById('fg-color');
+        
+        function toggleTheme() {
+            isDark = !isDark;
+            
+            if (isDark) {
+                body.className = 'dark';
+                dynamicTerminal.className = 'test-container dark';
+                themeStatus.textContent = 'dark';
+                bgColor.textContent = '#000000';
+                fgColor.textContent = '#ffffff';
+            } else {
+                body.className = 'light';
+                dynamicTerminal.className = 'test-container light';
+                themeStatus.textContent = 'light';
+                bgColor.textContent = '#ffffff';
+                fgColor.textContent = '#000000';
+            }
+        }
+        
+        // Test automatic theme detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            // Start with light theme if system prefers it
+            toggleTheme();
+        }
+    </script>
+</body>
+</html>

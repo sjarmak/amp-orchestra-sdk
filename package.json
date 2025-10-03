@@ -1,0 +1,31 @@
+{
+  "name": "amp-orchestra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "tauri:dev": "cd desktop-ui && pnpm tauri dev",
+    "tauri:build": "cd desktop-ui && pnpm tauri build",
+    "test:env-switch": "node tools/tests/env-switch-runner.mjs",
+    "test:env-switch:vitest": "vitest run tools/tests/env-switch.vitest.test.mjs",
+    "test:env-switch:basic": "vitest run tools/tests/env-switch-basic.test.mjs",
+    "test:env-switch:ui": "vitest run tools/tests/env-switch-ui.test.mjs",
+    "test:env-switch:comprehensive": "vitest run tools/tests/env-switch-comprehensive.test.mjs",
+    "test:agent-mode:ui": "node tools/tests/agent-mode-ui-test.mjs",
+    "test:agent-mode:simple": "node tools/tests/simple-agent-mode-check.mjs"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^20.11.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.1.0",
+    "vitest": "^1.2.0"
+  }
+}

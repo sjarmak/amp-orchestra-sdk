@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test TUI Critical Fixes</title>
+  <script>
+    // Test 1: UUID generation for variantId
+    function testUuidGeneration() {
+      const uuid1 = crypto.randomUUID();
+      const uuid2 = crypto.randomUUID();
+      console.log('UUID 1:', uuid1);
+      console.log('UUID 2:', uuid2);
+      console.log('UUIDs are different:', uuid1 !== uuid2);
+      return uuid1 !== uuid2;
+    }
+    
+    // Test 2: Screen space CSS classes
+    function testScreenSpaceClasses() {
+      const testElement = document.createElement('div');
+      testElement.className = 'flex-1 min-h-0 flex flex-col';
+      document.body.appendChild(testElement);
+      
+      const computedStyles = window.getComputedStyle(testElement);
+      const flexGrow = computedStyles.flexGrow;
+      const minHeight = computedStyles.minHeight;
+      const display = computedStyles.display;
+      const flexDirection = computedStyles.flexDirection;
+      
+      document.body.removeChild(testElement);
+      
+      console.log('Flex grow:', flexGrow);
+      console.log('Min height:', minHeight); 
+      console.log('Display:', display);
+      console.log('Flex direction:', flexDirection);
+      
+      return flexGrow === '1' && minHeight === '0px' && display === 'flex' && flexDirection === 'column';
+    }
+    
+    window.onload = function() {
+      console.log('=== TUI Critical Fixes Test ===');
+      
+      console.log('\n1. Testing UUID generation for variantId uniqueness:');
+      const uuidTest = testUuidGeneration();
+      console.log('✅ UUID generation test:', uuidTest ? 'PASSED' : 'FAILED');
+      
+      console.log('\n2. Testing screen space CSS classes:');
+      const cssTest = testScreenSpaceClasses();
+      console.log('✅ CSS classes test:', cssTest ? 'PASSED' : 'FAILED');
+      
+      console.log('\n=== Summary ===');
+      const allPassed = uuidTest && cssTest;
+      console.log(allPassed ? '✅ All tests PASSED' : '❌ Some tests FAILED');
+    };
+  </script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>TUI Critical Fixes Test</h1>
+  <p>Open Developer Console to see test results.</p>
+  
+  <h2>Changes Made:</h2>
+  <ol>
+    <li><strong>Fixed screen space utilization in TuiIntegration.tsx:</strong>
+      <ul>
+        <li>Changed root container to use <code>flex-1 min-h-0</code> instead of <code>h-full</code></li>
+        <li>This ensures the terminal can expand to fill available space properly</li>
+      </ul>
+    </li>
+    
+    <li><strong>Fixed session duplication with UUID variant IDs:</strong>
+      <ul>
+        <li>Modified TerminalProvider.tsx startSession() to generate <code>crypto.randomUUID()</code> for variantId</li>
+        <li>Added defensive check in setSessions() to prevent duplicate React nodes</li>
+        <li>Each session now has a truly unique identifier</li>
+      </ul>
+    </li>
+    
+    <li><strong>Deferred PTY spawn in AmpPtyTerminal.tsx:</strong>
+      <ul>
+        <li>Modified mount logic to delay cmd_start_tui until after first real fit</li>
+        <li>Pass measured cols/rows to backend instead of hardcoded 80x24</li>
+        <li>PTY creation now waits for correct terminal dimensions</li>
+      </ul>
+    </li>
+  </ol>
+  
+  <h2>Expected Benefits:</h2>
+  <ul>
+    <li>Terminal sessions fill the screen properly without height constraints</li>
+    <li>No duplicate sessions due to unique UUIDs</li>
+    <li>Terminals spawn with correct dimensions from the start</li>
+    <li>Better resize handling and screen space utilization</li>
+  </ul>
+</body>
+</html>

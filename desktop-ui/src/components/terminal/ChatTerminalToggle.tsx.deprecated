@@ -1,0 +1,218 @@
+/**
+ * M1.7 Chat/Terminal Toggle Component
+ * 
+ * Provides tabbed interface for switching between Chat and Terminal views.
+ * Maintains session state and last-tab persistence according to M1.7 spec.
+ */
+
+import React, { useState, useCallback, useEffect, memo } from 'react'
+import { MessageCircle, Terminal as TerminalIcon } from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+export type ViewMode = 'chat' | 'terminal'
+
+interface ChatTerminalToggleProps {
+  currentMode: ViewMode
+  onModeChange: (mode: ViewMode) => void
+  chatContent: React.ReactNode
+  terminalContent: React.ReactNode
+  className?: string
+  showBadges?: boolean
+  terminalStatus?: 'idle' | 'running' | 'error'
+}
+
+/**
+ * Chat/Terminal Toggle component with tabbed interface
+ * 
+ * Features:
+ * - Persistent tab selection (localStorage)
+ * - Status indicators for terminal state
+
+ * - Smooth transitions between views
+ * - Accessible design with proper ARIA attributes
+ */
+const ChatTerminalToggleComponent: React.FC<ChatTerminalToggleProps> = ({
+  currentMode,
+  onModeChange,
+  chatContent,
+  terminalContent,
+  className = '',
+  showBadges = true,
+  terminalStatus = 'idle'
+}) => {
+  const [hasTerminalActivity, setHasTerminalActivity] = useState(false)
+  
+  // Persist last selected tab
+  useEffect(() => {
+    const savedMode = localStorage.getItem('amp-last-view-mode') as ViewMode
+    if (savedMode && (savedMode === 'chat' || savedMode === 'terminal')) {
+      onModeChange(savedMode)
+    }
+  }, [onModeChange])
+  
+  // Save mode changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('amp-last-view-mode', currentMode)
+  }, [currentMode])
+  
+
+  
+  // Show activity indicator when switching away from terminal
+  useEffect(() => {
+    if (currentMode !== 'terminal' && terminalStatus === 'running') {
+      setHasTerminalActivity(true)
+    } else if (currentMode === 'terminal') {
+      setHasTerminalActivity(false)
+    }
+  }, [currentMode, terminalStatus])
+  
+  const handleTabClick = useCallback((mode: ViewMode) => {
+    onModeChange(mode)
+  }, [onModeChange])
+  
+  const getTerminalStatusColor = () => {
+    switch (terminalStatus) {
+      case 'running':
+        return 'text-green-500'
+      case 'error':
+        return 'text-red-500'
+      default:
+        return 'text-muted-foreground'
+    }
+  }
+  
+  const getTerminalBadge = () => {
+    if (!showBadges) return null
+    
+    if (hasTerminalActivity && currentMode !== 'terminal') {
+      return (
+        <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+      )
+    }
+    
+    if (terminalStatus === 'error') {
+      return (
+        <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+      )
+    }
+    
+    return null
+  }
+  
+  return (
+    <div className={cn('chat-terminal-toggle flex flex-col h-full', className)}>
+      {/* Tab Headers */}
+      <div className="flex border-b border-border bg-background">
+        {/* Chat Tab */}
+        <button
+          onClick={() => handleTabClick('chat')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors relative',
+            'hover:text-foreground hover:bg-muted/50',
+            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            currentMode === 'chat'
+              ? 'text-foreground border-b-2 border-primary bg-background'
+              : 'text-muted-foreground bg-muted/20'
+          )}
+          role="tab"
+          aria-selected={currentMode === 'chat'}
+          aria-controls="chat-panel"
+          id="chat-tab"
+          title="Switch to Chat"
+        >
+          <MessageCircle className="w-4 h-4" />
+          Chat
+        </button>
+        
+        {/* Terminal Tab */}
+        <button
+          onClick={() => handleTabClick('terminal')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors relative',
+            'hover:text-foreground hover:bg-muted/50',
+            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            currentMode === 'terminal'
+              ? 'text-foreground border-b-2 border-primary bg-background'
+              : 'text-muted-foreground bg-muted/20'
+          )}
+          role="tab"
+          aria-selected={currentMode === 'terminal'}
+          aria-controls="terminal-panel"
+          id="terminal-tab"
+          title="Switch to Terminal"
+        >
+          <TerminalIcon className={cn('w-4 h-4', getTerminalStatusColor())} />
+          Terminal
+          {getTerminalBadge()}
+        </button>
+      </div>
+      
+      {/* Content Panels */}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        {/* Chat Panel */}
+        <div
+          id="chat-panel"
+          role="tabpanel"
+          aria-labelledby="chat-tab"
+          className={cn(
+            'absolute inset-0 transition-all duration-200',
+            currentMode === 'chat'
+              ? 'opacity-100 transform translate-x-0 z-10'
+              : 'opacity-0 transform translate-x-full z-0 pointer-events-none'
+          )}
+        >
+          {chatContent}
+        </div>
+        
+        {/* Terminal Panel */}
+        <div
+          id="terminal-panel"
+          role="tabpanel"
+          aria-labelledby="terminal-tab"
+          className={cn(
+            'absolute inset-0 transition-all duration-200',
+            currentMode === 'terminal'
+              ? 'opacity-100 transform translate-x-0 z-10'
+              : 'opacity-0 transform -translate-x-full z-0 pointer-events-none'
+          )}
+        >
+          {terminalContent}
+        </div>
+      </div>
+      
+      {/* Status Bar */}
+      <div className="flex items-center justify-between px-3 py-1 text-xs text-muted-foreground bg-muted/30 border-t border-border">
+        <div className="flex items-center gap-2">
+          <span>{currentMode === 'chat' ? 'Chat Mode' : 'Terminal Mode'}</span>
+          {currentMode === 'terminal' && (
+            <span className={cn('flex items-center gap-1', getTerminalStatusColor())}>
+              <div className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                terminalStatus === 'running' ? 'bg-green-500' :
+                terminalStatus === 'error' ? 'bg-red-500' : 'bg-muted-foreground'
+              )} />
+              {terminalStatus}
+            </span>
+          )}
+        </div>
+        
+
+      </div>
+    </div>
+  )
+}
+
+// Memoize the component to prevent unnecessary re-renders
+export const ChatTerminalToggle = memo(ChatTerminalToggleComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.currentMode === nextProps.currentMode &&
+    prevProps.showBadges === nextProps.showBadges &&
+    prevProps.terminalStatus === nextProps.terminalStatus &&
+    prevProps.className === nextProps.className &&
+    prevProps.onModeChange === nextProps.onModeChange
+  )
+})
+
+ChatTerminalToggle.displayName = 'ChatTerminalToggle'
+
+export default ChatTerminalToggle

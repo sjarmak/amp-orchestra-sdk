@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Requires: gh, jq
+# Usage:
+#   tauri-ui-remote-gh run --repo owner/name --ref main --spec e2e/ui_smoke.test.mjs
+
+describe() { cat <<JSON
+{"name":"tauri-ui-remote-gh","version":"1.0.0",
+"usage":"tauri-ui-remote-gh run --repo <owner/name> --ref <gitref> --spec <path>",
+"description":"Kick off GitHub Actions Tauri UI E2E on Linux, wait, and download artifacts"}
+JSON
+}
+
+run_flow() {
+  local repo ref spec
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo) repo="$2"; shift 2;;
+      --ref)  ref="$2";  shift 2;;
+      --spec) spec="$2"; shift 2;;
+      *) echo "unknown arg $1"; exit 2;;
+    esac
+  done
+  [[ -n "${repo:-}" && -n "${ref:-}" && -n "${spec:-}" ]] || { echo "missing args"; exit 2; }
+
+  # Dispatch workflow
+  wid=$(gh workflow --repo "$repo" list --json name,id,path | jq -r '.[] | select(.path|test("ui-e2e-test.yml$")) | .id' | head -1)
+  [[ -n "$wid" ]] || { echo "workflow not found (.github/workflows/ui-e2e-test.yml)"; exit 1; }
+
+  gh workflow run "$wid" --repo "$repo" --ref "$ref" -f ref="$ref" -f spec="$spec"
+  sleep 2
+  rid=$(gh run list --repo "$repo" --workflow="$wid" --limit=1 --json databaseId | jq -r '.[0].databaseId')
+  [[ -n "$rid" ]] || { echo "failed to start run"; exit 1; }
+
+  # Poll status
+  while :; do
+    st=$(gh run view "$rid" --repo "$repo" --json status,conclusion | jq -r '.status + ":" + ( .conclusion // "" )')
+    case "$st" in
+      completed:success) break;;
+      completed:*) break;;
+      *) sleep 5;;
+    esac
+  done
+
+  # Download artifacts
+  outdir=$(mktemp -d /tmp/tauri-ui-artifacts.XXXXXX)
+  gh run download "$rid" --repo "$repo" --name ui-e2e-artifacts --dir "$outdir" || true
+
+  jq -n --arg status "$st" --arg artifacts "$outdir" \
+     '{
+        status:$status,
+        artifacts:$artifacts,
+        logs:{
+          app: ($artifacts + "/app.log"),
+          driver: ($artifacts + "/driver.log"),
+          test: ($artifacts + "/test.log")
+        }
+      }'
+}
+
+case "${TOOLBOX_ACTION:-run}" in
+  describe) describe ;;
+  run) shift || true; run_flow "$@" ;;
+  *) describe ;;
+esac

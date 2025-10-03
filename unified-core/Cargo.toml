@@ -1,0 +1,28 @@
+[package]
+name = "unified-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+sqlx = { workspace = true, features = ["sqlite", "chrono", "uuid"], optional = true }
+log = { workspace = true }
+git2 = { workspace = true, optional = true }
+tokio-util = { workspace = true }
+fs_extra = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+futures = "0.3"
+
+[features]
+default = ["libgit2"]
+legacy_node = []
+persistence = ["sqlx"]
+libgit2 = ["git2"]
