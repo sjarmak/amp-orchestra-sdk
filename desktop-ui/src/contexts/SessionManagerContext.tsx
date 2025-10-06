@@ -31,8 +31,9 @@ export interface Session {
   name: string;
   environment: SessionEnvironment;
   repositoryId: string; // Parent repository for this session
-  worktreePath: string; // Path to the worktree directory
-  worktreeBranch: string; // Git branch for this worktree
+  worktreePath: string; // Path to the worktree directory (or main repo path if isMain=true)
+  worktreeBranch: string; // Git branch for this worktree (or current branch if isMain=true)
+  isMain?: boolean; // True if using main branch without worktree
   threads: Thread[];      // NEW
   activeThreadId?: string;// NEW
   createdAt: number;
@@ -81,6 +82,7 @@ type SessionAction =
         environment: SessionEnvironment;
         worktreePath: string;
         worktreeBranch: string;
+        isMain?: boolean;
         threadId?: string;
         id: string;
       };
@@ -123,7 +125,8 @@ interface SessionManagerContextValue {
     environment: SessionEnvironment,
     branch: string,
     threadId?: string,
-    repoPath?: string
+    repoPath?: string,
+    useWorktree?: boolean
   ) => Promise<string>;
   getSessionsForRepo: (repoId: string) => Session[];
   switchSession: (sessionId: string) => void;
@@ -285,6 +288,7 @@ function sessionReducer(
         repositoryId: action.payload.repositoryId,
         worktreePath: action.payload.worktreePath,
         worktreeBranch: action.payload.worktreeBranch,
+        isMain: action.payload.isMain,
         threads: action.payload.threadId ? [{
           id: action.payload.threadId,
           name: action.payload.name, // Use session name for thread name
@@ -354,8 +358,8 @@ function sessionReducer(
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
-            ? { 
-                ...session, 
+            ? {
+                ...session,
                 threads: [...session.threads, thread],
                 activeThreadId: thread.id, // Automatically switch to new thread
                 lastActiveAt: Date.now()
@@ -371,11 +375,11 @@ function sessionReducer(
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
-            ? { 
-                ...session, 
+            ? {
+                ...session,
                 activeThreadId: threadId,
                 lastActiveAt: Date.now(),
-                threads: session.threads.map(t => 
+                threads: session.threads.map(t =>
                   t.id === threadId ? { ...t, lastActiveAt: Date.now() } : t
                 )
               }
@@ -390,8 +394,8 @@ function sessionReducer(
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
-            ? { 
-                ...session, 
+            ? {
+                ...session,
                 threads: [...session.threads, thread],
                 activeThreadId: thread.id, // Automatically switch to new thread
                 lastActiveAt: Date.now()
@@ -427,9 +431,9 @@ function sessionReducer(
         ...state,
         sessions: state.sessions.map((session) => {
           if (session.id !== sessionId) return session;
-          
+
           const remainingThreads = session.threads.filter(t => t.id !== threadId);
-          const newActiveThreadId = session.activeThreadId === threadId 
+          const newActiveThreadId = session.activeThreadId === threadId
             ? remainingThreads.length > 0 ? remainingThreads[0].id : undefined
             : session.activeThreadId;
 
@@ -449,11 +453,11 @@ function sessionReducer(
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
-            ? { 
-                ...session, 
+            ? {
+                ...session,
                 activeThreadId: threadId,
                 lastActiveAt: Date.now(),
-                threads: session.threads.map(t => 
+                threads: session.threads.map(t =>
                   t.id === threadId ? { ...t, lastActiveAt: Date.now() } : t
                 )
               }
@@ -629,7 +633,8 @@ export function SessionManagerProvider({
     environment: SessionEnvironment,
     branch: string,
     threadId?: string,
-    repoPath?: string
+    repoPath?: string,
+    useWorktree: boolean = true
   ): Promise<string> => {
     const newId = nanoid(); // Generate ID upfront so we can return it
 
@@ -638,31 +643,49 @@ export function SessionManagerProvider({
 
     try {
       let actualThreadId = threadId;
-      
+
       // Create default thread when creating new session if no threadId provided
       if (!actualThreadId) {
         const actualRepoPath = repoPath ?? repoId;
         const ampSessionId = await createAmpSession({
           working_directory: actualRepoPath,
-          // Add agent_id if environment is development 
+          // Add agent_id if environment is development
           ...(environment === "development" && { agent_id: "development" })
         });
-        
+
         // The ampSessionId is the threadId from Amp
         actualThreadId = ampSessionId;
         console.log('Created Amp session with default thread ID:', actualThreadId);
       }
 
       const actualRepoPath = repoPath ?? repoId; // fallback for older calls
-      console.log('Calling create_git_worktree with:', { repoPath: actualRepoPath, sessionId: newId });
-      
-      // Call Rust backend to create worktree
-      const worktreeMeta = await invoke<WorktreeMeta>('create_git_worktree', {
-        repoPath: actualRepoPath,
-        sessionId: newId,
-      });
+      let worktreeMeta: WorktreeMeta;
 
-      console.log('Received worktree metadata:', worktreeMeta);
+      if (useWorktree) {
+        console.log('Calling create_git_worktree with:', { repoPath: actualRepoPath, sessionId: newId });
+
+        // Call Rust backend to create worktree
+        worktreeMeta = await invoke<WorktreeMeta>('create_git_worktree', {
+          repoPath: actualRepoPath,
+          sessionId: newId,
+        });
+
+        console.log('Received worktree metadata:', worktreeMeta);
+      } else {
+        console.log('Using main branch without worktree');
+
+        // Get current branch from the repository
+        const currentBranch = await invoke<string>('get_current_branch', { path: actualRepoPath });
+
+        // Use the main repository path and current branch
+        worktreeMeta = {
+          path: actualRepoPath,
+          branch: currentBranch,
+          isMain: true,
+        };
+
+        console.log('Using main repository:', worktreeMeta);
+      }
 
       // Create the session with worktree info from backend and threadId
       dispatch({
@@ -673,6 +696,7 @@ export function SessionManagerProvider({
           environment,
           worktreePath: worktreeMeta.path,
           worktreeBranch: worktreeMeta.branch,
+          isMain: worktreeMeta.isMain,
           threadId: actualThreadId,
           id: newId,
         },
@@ -684,7 +708,9 @@ export function SessionManagerProvider({
       // Handle worktree creation failure
       const worktreeError: WorktreeError = {
         type: "creation_failed",
-        message: `Failed to create worktree for branch ${branch}`,
+        message: useWorktree
+          ? `Failed to create worktree for branch ${branch}`
+          : `Failed to create session on main branch`,
         details: error instanceof Error ? error.message : String(error),
       };
 
@@ -723,8 +749,8 @@ export function SessionManagerProvider({
         return;
       }
 
-      // Skip worktree cleanup for the main session (no separate worktree)
-      if (session.worktreePath !== session.repositoryId) {
+      // Skip worktree cleanup for main branch sessions (no separate worktree)
+      if (!session.isMain && session.worktreePath !== session.repositoryId) {
         try {
           await invoke('remove_git_worktree', {
             worktreePath: session.worktreePath,
@@ -767,7 +793,7 @@ export function SessionManagerProvider({
     const ampSessionId = await createAmpSession({
       // Pass working_directory only for worktree sessions, omit for "default"
       ...(session.worktreePath !== "default" && { working_directory: session.worktreePath }),
-      // Add agent_id if environment is development 
+      // Add agent_id if environment is development
       ...(session.environment === "development" && { agent_id: "development" })
     });
 

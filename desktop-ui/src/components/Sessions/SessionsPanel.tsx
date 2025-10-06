@@ -1,6 +1,6 @@
 /**
  * Sessions Panel - Expandable session management panel
- * 
+ *
  * A full-width expandable panel for managing multiple concurrent sessions.
  * Transforms from SessionSidebar following Oracle guidance: expandable panel structure.
  */
@@ -22,30 +22,31 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
   const { activeRepository } = useRepository()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  
+
   const handleCreateSession = async () => {
     if (!activeRepository) {
       console.warn('No active repository selected')
       return
     }
-    
+
     console.log('Creating session for repository:', activeRepository.path)
-    
+
     try {
       const environment: SessionEnvironment = 'production' // Default to production
       const branch = 'main' // Default branch for new sessions
-      const sessionId = await createSession(activeRepository.id, `Session ${state.sessions.length + 1}`, environment, branch, undefined, activeRepository.path)
+      const useWorktree = true // Default to worktree for quick create
+      const sessionId = await createSession(activeRepository.id, `Session ${state.sessions.length + 1}`, environment, branch, undefined, activeRepository.path, useWorktree)
       console.log('Successfully created session:', sessionId)
     } catch (error) {
       console.error('Failed to create session:', error)
     }
   }
-  
+
   const handleStartRename = (sessionId: string, currentName: string) => {
     setEditingId(sessionId)
     setEditName(currentName)
   }
-  
+
   const handleConfirmRename = () => {
     if (editingId && editName.trim()) {
       renameSession(editingId, editName.trim())
@@ -53,22 +54,22 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
     setEditingId(null)
     setEditName('')
   }
-  
+
   const handleCancelRename = () => {
     setEditingId(null)
     setEditName('')
   }
-  
+
   const handleDeleteSession = (sessionId: string) => {
     if (state.sessions.length > 1) { // Don't delete the last session
       deleteSession(sessionId)
     }
   }
-  
+
   const getSessionIcon = () => {
     return Folder
   }
-  
+
   const formatTooltipDate = (timestamp: number) => {
     const date = new Date(timestamp)
     return `Created: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
@@ -105,8 +106,15 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
       )
     }
 
-    // Show worktree branch badge for normal sessions
-    if (session.worktreeBranch && session.worktreeBranch !== 'main') {
+    // Show badge based on session type
+    if (session.isMain) {
+      return (
+        <Badge variant="outline" className="ml-2" title={`Main branch: ${session.worktreeBranch}`}>
+          <GitBranch className="w-2.5 h-2.5" />
+          {session.worktreeBranch}
+        </Badge>
+      )
+    } else if (session.worktreeBranch && session.worktreeBranch !== 'main') {
       return (
         <Badge variant="outline" className="ml-2" title={`Worktree: ${session.worktreePath}`}>
           <GitBranch className="w-2.5 h-2.5" />
@@ -117,7 +125,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
 
     return null
   }
-  
+
   return (
     <div className={`w-80 bg-background border-r border-border flex flex-col ${className}`}>
       {/* Header */}
@@ -146,20 +154,20 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
           )}
         </div>
       </div>
-      
+
       {/* Session list */}
       <div className="flex-1 overflow-y-auto py-4">
         <div className="space-y-2 px-4">
           {state.sessions.map((session) => {
             const isActive = session.id === currentSession?.id
             const SessionIcon = getSessionIcon()
-            
+
             return (
               <div
                 key={session.id}
                 className={`group relative rounded-lg border transition-all duration-200 ${
-                  isActive 
-                    ? 'bg-muted border-muted-foreground/20' 
+                  isActive
+                    ? 'bg-muted border-muted-foreground/20'
                     : 'border-border hover:bg-muted/50 hover:border-muted-foreground/20'
                 }`}
               >
@@ -176,7 +184,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                   <div className="w-8 h-8 flex items-center justify-center">
                     <SessionIcon className="w-4 h-4 text-muted-foreground" />
                   </div>
-                  
+
                   <div className="flex-1 text-left">
                     {editingId === session.id ? (
                       <input
@@ -194,7 +202,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                       />
                     ) : (
                       <div className="flex-1">
-                        <div 
+                        <div
                           className="text-sm font-medium text-foreground"
                           title={formatTooltipDate(session.createdAt)}
                         >
@@ -210,7 +218,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                     )}
                   </div>
                 </Button>
-                
+
                 {/* Hover controls */}
                 {!editingId && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -227,7 +235,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                       >
                         <Edit2 className="w-3 h-3" />
                       </Button>
-                      
+
                       {state.sessions.length > 1 && (
                         <Button
                           size="sm"
@@ -245,7 +253,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Rename controls */}
                 {editingId === session.id && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -258,7 +266,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
                     >
                       <Check className="w-3 h-3" />
                     </Button>
-                    
+
                     <Button
                       size="sm"
                       variant="ghost"
@@ -275,7 +283,7 @@ export function SessionsPanel({ className = '', onClose }: SessionsPanelProps) {
           })}
         </div>
       </div>
-      
+
       {/* Current session indicator at bottom */}
       {currentSession && (
         <div className="border-t border-border p-4">
