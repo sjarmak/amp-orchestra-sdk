@@ -35,7 +35,11 @@ export interface Session {
   worktreeBranch: string; // Git branch for this worktree (or current branch if isMain=true)
   isMain?: boolean; // True if using main branch without worktree
   threads: Thread[];      // NEW
-  activeThreadId?: string;// NEW
+  activeThreadId?: string;// NEW - deprecated, use activeThreadIds instead
+  activeThreadIds?: {     // NEW - separate active threads per context
+    production?: string;
+    development?: string;
+  };
   createdAt: number;
   lastActiveAt: number;
 }
@@ -101,11 +105,11 @@ type SessionAction =
       payload: { sessionId: string; error: WorktreeError };
     }
   | { type: "ADD_THREAD"; payload: { sessionId: string; thread: Thread } }
-  | { type: "SET_ACTIVE_THREAD"; payload: { sessionId: string; threadId: string } }
-  | { type: "CREATE_THREAD"; payload: { sessionId: string; thread: Thread } }
+  | { type: "SET_ACTIVE_THREAD"; payload: { sessionId: string; threadId: string; environment?: SessionEnvironment } }
+  | { type: "CREATE_THREAD"; payload: { sessionId: string; thread: Thread; environment?: SessionEnvironment } }
   | { type: "RENAME_THREAD"; payload: { sessionId: string; threadId: string; name: string } }
   | { type: "DELETE_THREAD"; payload: { sessionId: string; threadId: string } }
-  | { type: "SWITCH_THREAD"; payload: { sessionId: string; threadId: string } }
+  | { type: "SWITCH_THREAD"; payload: { sessionId: string; threadId: string; environment?: SessionEnvironment } }
   | { type: "UPDATE_THREAD_ACTIVITY"; payload: { sessionId: string; threadId: string } }
   | { type: "SWITCH_SESSION"; payload: { sessionId: string } }
   | { type: "SWITCH_ENVIRONMENT"; payload: { environment: SessionEnvironment } }
@@ -117,8 +121,9 @@ type SessionAction =
 interface SessionManagerContextValue {
   state: SessionManagerState;
   currentSession: Session | null;
-  currentThread: Thread | null; // NEW - convenience getter
+  currentThread: Thread | null; // NEW - convenience getter (uses activeThreadId for backward compatibility)
   currentEnvironment: SessionEnvironment;
+  getThreadForEnvironment: (environment: SessionEnvironment) => Thread | null; // NEW - get thread for specific environment
   createSession: (
     repoId: string,
     name: string,
@@ -136,7 +141,7 @@ interface SessionManagerContextValue {
   updateActivity: (sessionId?: string) => void;
   addThread: (sessionId: string, thread: Thread) => void; // NEW
   setActiveThread: (sessionId: string, threadId: string) => void; // NEW
-  createThread: (sessionId: string, name?: string) => Promise<string>;
+  createThread: (sessionId: string, name?: string, environment?: SessionEnvironment) => Promise<string>;
   switchThread: (sessionId: string, threadId: string) => void;
   renameThread: (sessionId: string, threadId: string, name: string) => void;
   deleteThread: (sessionId: string, threadId: string) => Promise<void>;
@@ -370,14 +375,21 @@ function sessionReducer(
     }
 
     case "SET_ACTIVE_THREAD": {
-      const { sessionId, threadId } = action.payload;
+      const { sessionId, threadId, environment } = action.payload;
       return {
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
             ? {
                 ...session,
+                // Update both old and new format for backward compatibility
                 activeThreadId: threadId,
+                activeThreadIds: environment
+                  ? {
+                      ...session.activeThreadIds,
+                      [environment]: threadId
+                    }
+                  : session.activeThreadIds,
                 lastActiveAt: Date.now(),
                 threads: session.threads.map(t =>
                   t.id === threadId ? { ...t, lastActiveAt: Date.now() } : t
@@ -389,7 +401,7 @@ function sessionReducer(
     }
 
     case "CREATE_THREAD": {
-      const { sessionId, thread } = action.payload;
+      const { sessionId, thread, environment } = action.payload;
       return {
         ...state,
         sessions: state.sessions.map((session) =>
@@ -397,7 +409,14 @@ function sessionReducer(
             ? {
                 ...session,
                 threads: [...session.threads, thread],
+                // Update both old and new format for backward compatibility
                 activeThreadId: thread.id, // Automatically switch to new thread
+                activeThreadIds: environment
+                  ? {
+                      ...session.activeThreadIds,
+                      [environment]: thread.id
+                    }
+                  : session.activeThreadIds,
                 lastActiveAt: Date.now()
               }
             : session
@@ -448,14 +467,21 @@ function sessionReducer(
     }
 
     case "SWITCH_THREAD": {
-      const { sessionId, threadId } = action.payload;
+      const { sessionId, threadId, environment } = action.payload;
       return {
         ...state,
         sessions: state.sessions.map((session) =>
           session.id === sessionId
             ? {
                 ...session,
+                // Update both old and new format for backward compatibility
                 activeThreadId: threadId,
+                activeThreadIds: environment
+                  ? {
+                      ...session.activeThreadIds,
+                      [environment]: threadId
+                    }
+                  : session.activeThreadIds,
                 lastActiveAt: Date.now(),
                 threads: session.threads.map(t =>
                   t.id === threadId ? { ...t, lastActiveAt: Date.now() } : t
@@ -622,6 +648,16 @@ export function SessionManagerProvider({
     ? currentSession.threads.find((t) => t.id === currentSession.activeThreadId) || null
     : null;
 
+  // Get the active thread for a specific environment
+  const getThreadForEnvironment = useCallback((environment: SessionEnvironment): Thread | null => {
+    if (!currentSession) return null;
+
+    const threadId = currentSession.activeThreadIds?.[environment];
+    if (!threadId) return null;
+
+    return currentSession.threads.find((t) => t.id === threadId) || null;
+  }, [currentSession]);
+
   // Save state to localStorage whenever it changes
   useEffect(() => {
     saveStateToStorage(state);
@@ -783,18 +819,21 @@ export function SessionManagerProvider({
     dispatch({ type: "SET_ACTIVE_THREAD", payload: { sessionId, threadId } });
   }, []);
 
-  const createThread = async (sessionId: string, name?: string): Promise<string> => {
+  const createThread = async (sessionId: string, name?: string, environment?: SessionEnvironment): Promise<string> => {
     const session = state.sessions.find(s => s.id === sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
+
+    // Use provided environment or fall back to session's environment
+    const effectiveEnvironment = environment || session.environment;
 
     // Create new Amp thread
     const ampSessionId = await createAmpSession({
       // Pass working_directory only for worktree sessions, omit for "default"
       ...(session.worktreePath !== "default" && { working_directory: session.worktreePath }),
       // Add agent_id if environment is development
-      ...(session.environment === "development" && { agent_id: "development" })
+      ...(effectiveEnvironment === "development" && { agent_id: "development" })
     });
 
     const thread: Thread = {
@@ -804,7 +843,7 @@ export function SessionManagerProvider({
       lastActiveAt: Date.now(),
     };
 
-    dispatch({ type: "CREATE_THREAD", payload: { sessionId, thread } });
+    dispatch({ type: "CREATE_THREAD", payload: { sessionId, thread, environment: effectiveEnvironment } });
     return thread.id;
   };
 
@@ -860,6 +899,7 @@ export function SessionManagerProvider({
     currentSession,
     currentThread,
     currentEnvironment: state.currentEnvironment,
+    getThreadForEnvironment,
     createSession,
     getSessionsForRepo,
     switchSession,

@@ -44,6 +44,7 @@ export function Chat() {
     activeSessionId,
     activeThreadId,
     switchContext,
+    switchToSession,
     addMessage,
     setSessionId,
     setThreadId,
@@ -52,7 +53,17 @@ export function Chat() {
     clearMessages,
   } = useDualChatContext();
 
-  const { currentSession, currentThread, switchEnvironment, createThread } = useSessionManager();
+  const { currentSession, switchEnvironment, createThread, getThreadForEnvironment } = useSessionManager();
+
+  // Sync chat messages when the current session changes
+  useEffect(() => {
+    if (currentSession) {
+      console.log('[Chat] Current session changed, loading messages for session:', currentSession.id);
+      switchToSession(currentSession.id);
+      // Clear the input box when switching sessions
+      setMessage("");
+    }
+  }, [currentSession?.id, switchToSession]);
 
   // Sync useAmpService session ID when active session changes
   useEffect(() => {
@@ -68,11 +79,14 @@ export function Chat() {
   const handleSwitchContext = async (ctx: "production" | "development") => {
     console.log("handleSwitchContext called with:", ctx);
     setIsPreparingContext(true);
-    
+
     try {
       // First, switch both the chat context and the global environment
       switchContext(ctx);
       switchEnvironment(ctx);
+
+      // Clear the input box when switching contexts
+      setMessage("");
 
       // Set environment based on context without creating new sessions
       if (ctx === "development") {
@@ -210,34 +224,31 @@ export function Chat() {
 
   // Bridge effect: Sync SessionManagerContext with DualChatContext (Session-based)
   useEffect(() => {
-    console.log("Bridge: Effect triggered with currentThread:", currentThread);
+    // Get the thread for the current active context (production or development)
+    const contextThread = getThreadForEnvironment(activeContext);
+
+    console.log("Bridge: Effect triggered with activeContext:", activeContext);
+    console.log("Bridge: contextThread for", activeContext, ":", contextThread);
     console.log("Bridge: currentSession:", currentSession);
-    console.log("Bridge: currentSession?.activeThreadId:", currentSession?.activeThreadId);
     console.log("Bridge: activeSessionId:", activeSessionId);
     console.log("Bridge: activeThreadId:", activeThreadId);
-    
+
     if (!currentSession) {
       console.log("Bridge: No currentSession available, skipping sync");
       return;
     }
 
-    if (currentSession.environment !== activeContext) {
-      console.log(
-        "Bridge: Session environment mismatch, skipping sync",
-        currentSession.environment,
-        "!=",
-        activeContext
-      );
-      return;
-    }
+    // Each session can now have independent threads/messages for both production and development contexts
+    // We use getThreadForEnvironment to get the context-specific thread
 
-    if (!currentThread) {
-      console.log("Bridge: No currentThread - creating thread for session");
-      // Create a thread immediately when switching to a session with no threads
+    if (!contextThread) {
+      console.log("Bridge: No thread for context", activeContext, "- creating thread for session");
+      // Create a thread immediately when switching to a context with no thread
+      // Pass the active context as the environment to ensure proper Amp configuration
       const createThreadAsync = async () => {
         try {
-          const threadId = await createThread(currentSession.id, 'New Thread');
-          console.log("Bridge: Created thread for sessionless session:", threadId);
+          const threadId = await createThread(currentSession.id, `${activeContext} Thread`, activeContext);
+          console.log("Bridge: Created thread for", activeContext, ":", threadId);
         } catch (error) {
           console.error("Bridge: Failed to create thread:", error);
         }
@@ -245,22 +256,22 @@ export function Chat() {
       createThreadAsync();
       return; // Let the next effect cycle handle the new thread
     }
-    
-    console.log("Bridge: Thread changed to:", currentThread);
-    
+
+    console.log("Bridge: Thread for", activeContext, "changed to:", contextThread);
+
     // Keep UI thread ID in sync for message filtering
-    if (currentThread.id !== activeThreadId) {
-      console.log("Bridge: Setting thread ID to:", currentThread.id);
-      setThreadId(activeContext, currentThread.id);
+    if (contextThread.id !== activeThreadId) {
+      console.log("Bridge: Setting thread ID to:", contextThread.id);
+      setThreadId(activeContext, contextThread.id);
     }
-    
+
     // For Amp communication, we need to ensure we have a valid session ID
     // If the thread.id is a real Amp session ID, use it for both
-    if (currentThread.id !== activeSessionId) {
-      console.log("Bridge: Setting session ID to match thread:", currentThread.id);
-      setSessionId(activeContext, currentThread.id);
+    if (contextThread.id !== activeSessionId) {
+      console.log("Bridge: Setting session ID to match thread:", contextThread.id);
+      setSessionId(activeContext, contextThread.id);
     }
-  }, [currentThread, activeContext, activeThreadId, activeSessionId, setThreadId, setSessionId, currentSession]);
+  }, [activeContext, activeThreadId, activeSessionId, setThreadId, setSessionId, currentSession, createThread, getThreadForEnvironment]);
 
   // Synchronize chatHistory from useAmpService with useDualChatContext
   useEffect(() => {
@@ -268,7 +279,7 @@ export function Chat() {
     const filterId = activeThreadId || activeSessionId;
     const filterType = activeThreadId ? 'thread' : 'session';
     const filterField = activeThreadId ? 'threadId' : 'sessionId';
-    
+
     // If no filter ID, clear messages (session with no threads)
     if (!filterId) {
       console.log('[Chat] No active thread or session ID - clearing messages');
@@ -278,17 +289,17 @@ export function Chat() {
       }
       return;
     }
-    
+
     if (chatHistory.length > 0) {
       // Filter messages for the current thread/session
       console.log(`[Chat] Filtering messages for active${filterType}Id:`, filterId);
       console.log('[Chat] Total messages in chatHistory:', chatHistory.length);
       console.log(`[Chat] All messages with ${filterField}s:`, chatHistory.map(msg => ({ content: msg.content, [filterField]: (msg as any)[filterField] })));
-      
+
       const threadMessages = chatHistory.filter(
         (msg) => (msg as any)[filterField] === filterId
       );
-      
+
       console.log(`[Chat] Filtered ${filterType}Messages:`, threadMessages.length, threadMessages.map(msg => ({ content: msg.content, [filterField]: (msg as any)[filterField] })));
 
       // Get current context messages
