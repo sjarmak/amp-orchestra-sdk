@@ -22,6 +22,8 @@ pub fn run() {
             commands::list_directory,
             commands::open_file_in_vscode,
             commands::parse_file_url,
+            commands::get_current_working_directory,
+            commands::get_current_branch,
             cli_detection::detect_cli_profiles,
             cli_detection::validate_cli_path,
             cli_detection::install_global_cli,

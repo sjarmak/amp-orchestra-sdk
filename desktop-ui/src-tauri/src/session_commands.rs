@@ -231,11 +231,12 @@ pub async fn session_create(
             merged_env.get("AMP_URL"),
             mode, cli_path, srv_url, session_id
         ));
-        let _ = std::fs::create_dir_all("/Users/sjarmak/amp-orchestra/logs");
+        let log_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")).join("logs");
+        let _ = std::fs::create_dir_all(&log_dir);
         let _ = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open("/Users/sjarmak/amp-orchestra/logs/ui-connection.log")
+            .open(log_dir.join("ui-connection.log"))
             .and_then(|mut f| std::io::Write::write_all(&mut f, diag.as_bytes()));
     }
 

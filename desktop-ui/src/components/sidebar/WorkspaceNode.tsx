@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  Briefcase, 
-  Plus, 
+import {
+  ChevronRight,
+  ChevronDown,
+  Briefcase,
+  Plus,
   Settings,
   FolderPlus
 } from 'lucide-react';
@@ -25,10 +25,10 @@ export const WorkspaceNode: React.FC<WorkspaceNodeProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(isActive);
   const [showActions, setShowActions] = useState(false);
-  const { 
-    activeRepository, 
-    setActiveRepository, 
-    removeRepository 
+  const {
+    activeRepository,
+    setActiveRepository,
+    removeRepository
   } = useRepository();
 
   const handleToggle = () => {
@@ -36,6 +36,9 @@ export const WorkspaceNode: React.FC<WorkspaceNodeProps> = ({
   };
 
   const handleSelect = () => {
+    console.log('[WorkspaceNode] Workspace clicked:', workspace);
+    // Call the parent's onSelect which should be setActiveWorkspace from RepositoryContext
+    // setActiveWorkspace will handle setting the active repository automatically
     onSelect(workspace);
     setIsExpanded(true);
   };
@@ -51,8 +54,8 @@ export const WorkspaceNode: React.FC<WorkspaceNodeProps> = ({
     <div className="mb-2">
       <div
         className={`flex items-center px-3 py-2 text-sm cursor-pointer transition-colors group ${
-          isActive 
-            ? 'bg-accent/60 text-accent-foreground' 
+          isActive
+            ? 'bg-accent/60 text-accent-foreground'
             : 'hover:bg-accent/30 text-foreground'
         }`}
         onClick={handleSelect}
@@ -69,10 +72,10 @@ export const WorkspaceNode: React.FC<WorkspaceNodeProps> = ({
             <ChevronRight className="w-4 h-4" />
           )}
         </button>
-        
+
         <Briefcase className="w-4 h-4 mr-2 text-primary/80" />
         <span className="flex-1 font-medium truncate">{workspace.name}</span>
-        
+
         <div className={`flex items-center gap-1 transition-opacity ${
           showActions ? 'opacity-100' : 'opacity-0'
         }`}>

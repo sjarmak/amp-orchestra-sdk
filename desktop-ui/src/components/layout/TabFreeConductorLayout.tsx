@@ -49,7 +49,7 @@ const TopBar = ({
         <div className={`flex items-center space-x-2 ${sidebarVisible ? 'ml-72' : ''}`}>
           <FolderOpen className="w-4 h-4" />
           <span className="font-medium select-none">
-            {activeRepository?.name || "amp-orchestra"}
+            {activeRepository?.name || "No workspace"}
           </span>
           <GitBranch className="w-3 h-3" />
           <span className="text-sm text-muted-foreground select-none">

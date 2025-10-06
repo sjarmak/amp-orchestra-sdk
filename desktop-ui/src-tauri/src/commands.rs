@@ -5,6 +5,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use serde_json::json;
 
+#[tauri::command]
+pub async fn get_current_working_directory() -> Result<String, String> {
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
 
 /// Generate the worktree path for a given session ID
 fn path_for(repo_path: &std::path::Path, session_id: &str) -> std::path::PathBuf {

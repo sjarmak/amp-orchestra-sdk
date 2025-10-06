@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import SimpleTerminalFixed from '../terminal/SimpleTerminalFixed';
 import { Terminal, Plus, X } from 'lucide-react';
 
@@ -16,16 +17,28 @@ interface TerminalTab {
  * TerminalPane wraps the existing SimpleTerminal component for use in the resizable layout
  */
 export const TerminalPane: React.FC<TerminalPaneProps> = ({ className = '' }) => {
-  const [terminals, setTerminals] = useState<TerminalTab[]>([
-    { id: 'default', name: 'Terminal', cwd: '/Users/sjarmak/amp-orchestra' }
-  ]);
+  const [cwd, setCwd] = useState<string>('');
+  const [terminals, setTerminals] = useState<TerminalTab[]>([]);
   const [activeTerminalId, setActiveTerminalId] = useState('default');
+
+  useEffect(() => {
+    invoke<string>('get_current_working_directory').then(dir => {
+      setCwd(dir);
+      setTerminals([{ id: 'default', name: 'Terminal', cwd: dir }]);
+    }).catch(err => {
+      console.error('Failed to get current directory:', err);
+      // Fallback to home directory
+      const fallback = '~';
+      setCwd(fallback);
+      setTerminals([{ id: 'default', name: 'Terminal', cwd: fallback }]);
+    });
+  }, []);
 
   const addTerminal = () => {
     const newTerminal: TerminalTab = {
       id: `terminal-${Date.now()}`,
       name: `Terminal ${terminals.length + 1}`,
-      cwd: '/Users/sjarmak/amp-orchestra'
+      cwd: cwd || '~'
     };
     setTerminals([...terminals, newTerminal]);
     setActiveTerminalId(newTerminal.id);
